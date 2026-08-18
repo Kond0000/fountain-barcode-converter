@@ -27,7 +27,7 @@ export const LABEL_LAYOUT_MM = {
   sectionGap: 2.4,
   barcodeValueGap: 0.8,
   brand: { fontSize: 2.8, lineHeight: 3.6, weight: 600 },
-  productName: { fontSize: 3.8, minFontSize: 1.75, lineHeight: 4.8, weight: 700 },
+  productName: { fontSize: 3.8, minFontSize: 1, lineHeight: 4.8, weight: 700 },
   variant: { fontSize: 3, lineHeight: 3.8, weight: 500 },
   price: { fontSize: 4.8, lineHeight: 6, weight: 700 },
   barcodeHeight: 12,

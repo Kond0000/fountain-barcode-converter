@@ -22,4 +22,9 @@ describe("label settings", () => {
     expect(LABEL_LAYOUT_MM.sectionGap).toBeGreaterThan(LABEL_LAYOUT_MM.itemGap);
     expect(LABEL_LAYOUT_MM.itemGap).toBeGreaterThan(LABEL_LAYOUT_MM.barcodeValueGap);
   });
+
+  it("prioritizes a single-line product name down to 1 mm", () => {
+    expect(LABEL_LAYOUT_MM.productName.minFontSize).toBe(1);
+    expect(LABEL_LAYOUT_MM.productName.minFontSize).toBeLessThan(LABEL_LAYOUT_MM.productName.fontSize);
+  });
 });
