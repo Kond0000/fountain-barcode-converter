@@ -1,4 +1,4 @@
-import { createCode128Canvas } from "../barcode/generateCode128";
+import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
 import { wrapTextLines } from "../label/wrapText";
 import { mmToPt, mmToPx } from "../units/mmToPt";
@@ -14,7 +14,7 @@ export type DirectPrintPagePdf = {
 
 export type DirectPrintPages = { pages: DirectPrintPagePdf[] };
 
-const PDF_DPI = 300;
+export const LABEL_PRINT_DPI = 203;
 const LABEL_FONT = '\"Hiragino Sans\", \"Yu Gothic\", \"Noto Sans JP\", sans-serif';
 
 function resolveContent(row: CsvRow, elements: LabelElement[]) {
@@ -120,11 +120,27 @@ function drawTextLayoutItem(context: CanvasRenderingContext2D, item: TextLayoutI
   });
 }
 
+function convertCanvasToMonochrome(canvas: HTMLCanvasElement): void {
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("ラベル描画を初期化できませんでした。");
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  const { data } = image;
+  for (let index = 0; index < data.length; index += 4) {
+    const luminance = (data[index] * 299 + data[index + 1] * 587 + data[index + 2] * 114) / 1000;
+    const value = luminance < 192 ? 0 : 255;
+    data[index] = value;
+    data[index + 1] = value;
+    data[index + 2] = value;
+    data[index + 3] = 255;
+  }
+  context.putImageData(image, 0, 0);
+}
+
 export async function renderLabelCanvas(
   row: CsvRow,
   elements: LabelElement[],
   settings: LabelSettings,
-  dpi = PDF_DPI,
+  dpi = LABEL_PRINT_DPI,
 ): Promise<HTMLCanvasElement> {
   validateLabelSettings(settings);
   const canvas = document.createElement("canvas");
@@ -138,11 +154,14 @@ export async function renderLabelCanvas(
   const verticalMargin = mmToPx(settings.marginMm, dpi);
   const horizontalMargin = mmToPx(calculateHorizontalMargin(settings.marginMm), dpi);
   const maxWidth = Math.max(canvas.width - horizontalMargin * 2, 1);
-  const barcodeCanvas = await createCode128Canvas(content.barcode, { scale: 4, heightMm: 12 });
   const barcodeMaxHeight = mmToPx(LABEL_LAYOUT_MM.barcodeHeight, dpi);
-  const scale = Math.min(maxWidth / barcodeCanvas.width, barcodeMaxHeight / barcodeCanvas.height);
-  const barcodeWidth = Math.max(Math.floor(barcodeCanvas.width * scale), 1);
-  const barcodeHeight = Math.max(Math.floor(barcodeCanvas.height * scale), 1);
+  const barcodeCanvas = await createCode128CanvasForPrinter(content.barcode, {
+    maxWidthPx: maxWidth,
+    targetHeightPx: barcodeMaxHeight,
+    renderDpi: dpi,
+  });
+  const barcodeWidth = barcodeCanvas.width;
+  const barcodeHeight = barcodeCanvas.height;
 
   const items: LayoutItem[] = [];
   const addText = (text: string, style: TextLayoutStyle, section: LayoutSection) => {
@@ -172,12 +191,13 @@ export async function renderLabelCanvas(
       drawTextLayoutItem(context, item, y);
     } else {
       context.imageSmoothingEnabled = false;
-      context.drawImage(item.canvas, Math.floor((canvas.width - item.width) / 2), y, item.width, item.height);
+      context.drawImage(item.canvas, Math.floor((canvas.width - item.width) / 2), y);
     }
     y += item.height;
     const next = items[index + 1];
     if (next) y += getItemGap(item, next, dpi);
   });
+  convertCanvasToMonochrome(canvas);
   return canvas;
 }
 
@@ -230,7 +250,7 @@ export async function generateLabelsPdf(
 
   for (const { canvas, copies } of renderedEntries) {
     const image = await pdf.embedPng(canvas.toDataURL("image/png"));
-    const pageHeight = canvas.height * 72 / PDF_DPI;
+    const pageHeight = canvas.height * 72 / LABEL_PRINT_DPI;
     for (let copy = 0; copy < copies; copy += 1) {
       const page = pdf.addPage([pageWidth, pageHeight]);
       page.drawImage(image, { x: 0, y: 0, width: pageWidth, height: pageHeight });
@@ -255,7 +275,7 @@ export async function generateDirectPrintPages(
   ]);
   const widthMm = roundPrintDimensionMm(settings.widthMm);
   const pageTemplates = await Promise.all(renderedEntries.map(async ({ canvas, copies }) => {
-    const heightMm = roundPrintDimensionMm(canvas.height * 25.4 / PDF_DPI);
+    const heightMm = roundPrintDimensionMm(canvas.height * 25.4 / LABEL_PRINT_DPI);
     const [pageWidth, pageHeight] = createPdfPageSize(widthMm, heightMm);
     const pdf = await PDFDocument.create();
     pdf.setTitle("mC-Label3 Print");

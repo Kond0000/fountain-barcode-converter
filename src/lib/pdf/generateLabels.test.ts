@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateLabelPageCount, createPdfPageSize } from "./generateLabels";
+import { calculateLabelPageCount, createPdfPageSize, LABEL_PRINT_DPI } from "./generateLabels";
 
 describe("label PDF metadata", () => {
+  it("renders labels at the mC-Label3 native 203 dpi", () => {
+    expect(LABEL_PRINT_DPI).toBe(203);
+  });
+
   it("uses exact 60 x 66.72 mm page dimensions", () => {
     const [widthPt, heightPt] = createPdfPageSize(60, 66.72);
     expect(widthPt * 25.4 / 72).toBeCloseTo(60, 10);
