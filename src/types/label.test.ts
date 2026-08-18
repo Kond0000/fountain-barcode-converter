@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateHorizontalMargin, createDefaultLabelElements, DEFAULT_LABEL_SETTINGS, LABEL_LAYOUT_MM } from "./label";
+import {
+  calculateHorizontalMargin,
+  createDefaultLabelElements,
+  DEFAULT_LABEL_SETTINGS,
+  LABEL_LAYOUT_MM,
+  PRODUCT_NAME_MAX_CHARACTERS_PER_LINE,
+} from "./label";
 
 describe("label settings", () => {
   it("only stores values that the user can edit", () => {
@@ -23,8 +29,16 @@ describe("label settings", () => {
     expect(LABEL_LAYOUT_MM.itemGap).toBeGreaterThan(LABEL_LAYOUT_MM.barcodeValueGap);
   });
 
-  it("prioritizes a single-line product name down to 1 mm", () => {
-    expect(LABEL_LAYOUT_MM.productName.minFontSize).toBe(1);
+  it("keeps product names legible before wrapping after 28 characters", () => {
+    expect(PRODUCT_NAME_MAX_CHARACTERS_PER_LINE).toBe(28);
+    expect(LABEL_LAYOUT_MM.productName.minFontSize).toBe(3);
+    expect(LABEL_LAYOUT_MM.productName.minFontSize).toBeGreaterThan(
+      LABEL_LAYOUT_MM.variant.fontSize,
+    );
     expect(LABEL_LAYOUT_MM.productName.minFontSize).toBeLessThan(LABEL_LAYOUT_MM.productName.fontSize);
+  });
+
+  it("makes the right-aligned price larger than the variant values", () => {
+    expect(LABEL_LAYOUT_MM.price.fontSize).toBeGreaterThan(LABEL_LAYOUT_MM.variant.fontSize);
   });
 });

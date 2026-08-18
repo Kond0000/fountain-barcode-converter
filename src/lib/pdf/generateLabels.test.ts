@@ -2,18 +2,35 @@ import { describe, expect, it } from "vitest";
 import {
   calculateLabelPageCount,
   createPdfPageSize,
+  LABEL_PRINT_DOTS_PER_MM,
   LABEL_PRINT_DPI,
   LABEL_RENDER_DPI,
+  LABEL_RENDER_SCALE,
+  mmToLabelRenderPixels,
 } from "./generateLabels";
 
 describe("label PDF metadata", () => {
-  it("renders labels at the mC-Label3 native 203 dpi", () => {
-    expect(LABEL_PRINT_DPI).toBe(203);
+  it("uses the mC-Label3 native 8 dots per millimetre grid", () => {
+    expect(LABEL_PRINT_DOTS_PER_MM).toBe(8);
+    expect(LABEL_PRINT_DPI).toBeCloseTo(203.2, 10);
   });
 
-  it("creates a 2x raster source while preserving the 203 dpi printer grid", () => {
-    expect(LABEL_RENDER_DPI).toBe(406);
-    expect(LABEL_RENDER_DPI / LABEL_PRINT_DPI).toBe(2);
+  it("creates a 2x raster source while preserving whole printer dots", () => {
+    expect(LABEL_RENDER_DPI).toBeCloseTo(406.4, 10);
+    expect(LABEL_RENDER_SCALE).toBe(2);
+    expect(LABEL_RENDER_DPI / LABEL_PRINT_DPI).toBe(LABEL_RENDER_SCALE);
+  });
+
+  it("maps 50 mm to exactly 400 printer dots and 800 render pixels", () => {
+    const renderPixels = mmToLabelRenderPixels(50);
+    expect(renderPixels).toBe(800);
+    expect(renderPixels / LABEL_RENDER_SCALE).toBe(400);
+  });
+
+  it("snaps arbitrary millimetre values to whole printer dots before supersampling", () => {
+    const renderPixels = mmToLabelRenderPixels(50.1);
+    expect(renderPixels).toBe(802);
+    expect(renderPixels % LABEL_RENDER_SCALE).toBe(0);
   });
 
   it("uses exact 60 x 66.72 mm page dimensions", () => {

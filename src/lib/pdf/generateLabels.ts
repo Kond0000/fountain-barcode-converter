@@ -1,10 +1,18 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
 import { fitTextToSingleLine, LABEL_FONT_FAMILY } from "../label/fitText";
+import { shouldStackDetailsRow } from "../label/layoutDetailsRow";
+import { layoutProductName } from "../label/layoutProductName";
 import { wrapTextLines } from "../label/wrapText";
-import { mmToPt, mmToPx } from "../units/mmToPt";
+import { mmToPt } from "../units/mmToPt";
 import type { CsvRow } from "../../types/csv";
-import { calculateHorizontalMargin, LABEL_LAYOUT_MM, type LabelElement, type LabelSettings } from "../../types/label";
+import {
+  calculateHorizontalMargin,
+  LABEL_LAYOUT_MM,
+  PRODUCT_NAME_MAX_CHARACTERS_PER_LINE,
+  type LabelElement,
+  type LabelSettings,
+} from "../../types/label";
 
 export type LabelPdfEntry = { row: CsvRow; copies: number };
 export type DirectPrintPagePdf = {
@@ -15,14 +23,33 @@ export type DirectPrintPagePdf = {
 
 export type DirectPrintPages = { pages: DirectPrintPagePdf[] };
 
-export const LABEL_PRINT_DPI = 203;
-export const LABEL_RENDER_DPI = LABEL_PRINT_DPI * 2;
+export const LABEL_PRINT_DOTS_PER_MM = 8;
+export const LABEL_PRINT_DPI = LABEL_PRINT_DOTS_PER_MM * 25.4;
+export const LABEL_RENDER_SCALE = 2;
+export const LABEL_RENDER_PIXELS_PER_MM = LABEL_PRINT_DOTS_PER_MM * LABEL_RENDER_SCALE;
+export const LABEL_RENDER_DPI = LABEL_RENDER_PIXELS_PER_MM * 25.4;
+
+export function mmToLabelRenderPixels(mm: number): number {
+  return Math.round(mm * LABEL_PRINT_DOTS_PER_MM) * LABEL_RENDER_SCALE;
+}
+
+function labelRenderPixelsToMm(pixels: number): number {
+  return pixels / LABEL_RENDER_PIXELS_PER_MM;
+}
+
+function snapToPrinterDot(pixels: number): number {
+  return Math.max(Math.floor(pixels / LABEL_RENDER_SCALE) * LABEL_RENDER_SCALE, LABEL_RENDER_SCALE);
+}
+
+function ceilToPrinterDot(pixels: number): number {
+  return Math.max(Math.ceil(pixels / LABEL_RENDER_SCALE) * LABEL_RENDER_SCALE, LABEL_RENDER_SCALE);
+}
 
 function resolveContent(row: CsvRow, elements: LabelElement[]) {
   const content = {
     brand: "",
     productName: "",
-    variant: "",
+    variantParts: [] as string[],
     price: "",
     barcode: "",
     barcodeValue: "",
@@ -32,10 +59,9 @@ function resolveContent(row: CsvRow, elements: LabelElement[]) {
     if (element.type === "barcode") {
       content.barcode = row[element.sourceField] ?? "";
     } else if (element.type === "compositeText") {
-      content.variant = element.sourceFields
+      content.variantParts = element.sourceFields
         .map((field) => row[field]?.trim())
-        .filter(Boolean)
-        .join(element.separator);
+        .filter(Boolean);
     } else {
       const value = row[element.sourceField] ?? "";
       if (element.role === "price") content.price = formatPrice(value);
@@ -46,14 +72,31 @@ function resolveContent(row: CsvRow, elements: LabelElement[]) {
 }
 
 type TextLayoutStyle = { fontSize: number; minFontSize?: number; lineHeight: number; weight: number };
-type LayoutSection = "product" | "price" | "barcode";
+type LayoutSection = "product" | "barcode" | "footer";
+type TextAlignment = "left" | "center" | "right";
 type TextLayoutItem = {
   type: "text";
   section: LayoutSection;
+  alignment: TextAlignment;
   lines: string[];
   fontSize: number;
   lineHeight: number;
   weight: number;
+  height: number;
+};
+type DetailsLayoutItem = {
+  type: "details";
+  section: "product";
+  variant: string;
+  price: string;
+  variantFontSize: number;
+  variantLineHeight: number;
+  variantWeight: number;
+  priceFontSize: number;
+  priceLineHeight: number;
+  priceWeight: number;
+  rowGap: number;
+  stacked: boolean;
   height: number;
 };
 type BarcodeLayoutItem = {
@@ -63,7 +106,7 @@ type BarcodeLayoutItem = {
   width: number;
   height: number;
 };
-type LayoutItem = TextLayoutItem | BarcodeLayoutItem;
+type LayoutItem = TextLayoutItem | DetailsLayoutItem | BarcodeLayoutItem;
 type RenderedLabelEntry = { canvas: HTMLCanvasElement; copies: number };
 
 function roundPrintDimensionMm(value: number): number {
@@ -84,11 +127,11 @@ function createTextLayoutItem(
   style: TextLayoutStyle,
   section: LayoutSection,
   maxWidth: number,
-  dpi: number,
+  alignment: TextAlignment = "center",
 ): TextLayoutItem | null {
   if (!text.trim()) return null;
-  const preferredFontSize = Math.max(mmToPx(style.fontSize, dpi), 1);
-  const preferredLineHeight = Math.max(mmToPx(style.lineHeight, dpi), preferredFontSize);
+  const preferredFontSize = Math.max(mmToLabelRenderPixels(style.fontSize), LABEL_RENDER_SCALE);
+  const preferredLineHeight = Math.max(mmToLabelRenderPixels(style.lineHeight), preferredFontSize);
   context.font = `${style.weight} ${preferredFontSize}px ${LABEL_FONT_FAMILY}`;
 
   const fitted = style.minFontSize === undefined
@@ -98,11 +141,11 @@ function createTextLayoutItem(
       maxWidth,
       preferredFontSize,
       preferredLineHeight,
-      minFontSize: mmToPx(style.minFontSize, dpi),
+      minFontSize: mmToLabelRenderPixels(style.minFontSize),
       measureAtPreferredSize: (value) => context.measureText(value).width,
     });
-  const fontSize = fitted?.fontSize ?? preferredFontSize;
-  const lineHeight = fitted?.lineHeight ?? preferredLineHeight;
+  const fontSize = fitted ? snapToPrinterDot(fitted.fontSize) : preferredFontSize;
+  const lineHeight = fitted ? snapToPrinterDot(fitted.lineHeight) : preferredLineHeight;
   const fittedText = fitted?.text ?? text;
   context.font = `${style.weight} ${fontSize}px ${LABEL_FONT_FAMILY}`;
   const lines = fitted && !fitted.shouldWrap
@@ -112,6 +155,7 @@ function createTextLayoutItem(
   return {
     type: "text",
     section,
+    alignment,
     lines,
     fontSize,
     lineHeight,
@@ -120,22 +164,126 @@ function createTextLayoutItem(
   };
 }
 
-function getItemGap(current: LayoutItem, next: LayoutItem, dpi: number): number {
-  if (current.section !== next.section) return mmToPx(LABEL_LAYOUT_MM.sectionGap, dpi);
+function createProductNameLayoutItem(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): TextLayoutItem | null {
+  if (!text.trim()) return null;
+  const style = LABEL_LAYOUT_MM.productName;
+  const preferredFontSize = mmToLabelRenderPixels(style.fontSize);
+  const preferredLineHeight = mmToLabelRenderPixels(style.lineHeight);
+  const layout = layoutProductName({
+    text,
+    maxCharacters: PRODUCT_NAME_MAX_CHARACTERS_PER_LINE,
+    maxWidth,
+    preferredFontSize,
+    preferredLineHeight,
+    minFontSize: mmToLabelRenderPixels(style.minFontSize),
+    measure: (value, fontSize) => {
+      context.font = `${style.weight} ${fontSize}px ${LABEL_FONT_FAMILY}`;
+      return context.measureText(value).width;
+    },
+  });
+  const fontSize = snapToPrinterDot(layout.fontSize);
+  const lineHeight = snapToPrinterDot(layout.lineHeight);
+  return {
+    type: "text",
+    section: "product",
+    alignment: "left",
+    lines: layout.lines,
+    fontSize,
+    lineHeight,
+    weight: style.weight,
+    height: lineHeight * layout.lines.length,
+  };
+}
+
+function createDetailsLayoutItem(
+  parts: string[],
+  price: string,
+): DetailsLayoutItem | null {
+  const variant = parts.join(" / ");
+  if (!variant && !price) return null;
+  const variantStyle = LABEL_LAYOUT_MM.variant;
+  const priceStyle = LABEL_LAYOUT_MM.price;
+  const variantFontSize = mmToLabelRenderPixels(variantStyle.fontSize);
+  const variantLineHeight = mmToLabelRenderPixels(variantStyle.lineHeight);
+  const priceFontSize = mmToLabelRenderPixels(priceStyle.fontSize);
+  const priceLineHeight = mmToLabelRenderPixels(priceStyle.lineHeight);
+  const rowGap = mmToLabelRenderPixels(LABEL_LAYOUT_MM.itemGap);
+  const stacked = shouldStackDetailsRow({ variant, price });
+  return {
+    type: "details",
+    section: "product",
+    variant,
+    price,
+    variantFontSize,
+    variantLineHeight,
+    variantWeight: variantStyle.weight,
+    priceFontSize,
+    priceLineHeight,
+    priceWeight: priceStyle.weight,
+    rowGap,
+    stacked,
+    height: stacked
+      ? variantLineHeight + rowGap + priceLineHeight
+      : Math.max(variantLineHeight, priceLineHeight),
+  };
+}
+
+function getItemGap(current: LayoutItem, next: LayoutItem): number {
+  if (current.section !== next.section) return mmToLabelRenderPixels(LABEL_LAYOUT_MM.sectionGap);
   const gapMm = current.section === "barcode"
     ? LABEL_LAYOUT_MM.barcodeValueGap
     : LABEL_LAYOUT_MM.itemGap;
-  return mmToPx(gapMm, dpi);
+  return mmToLabelRenderPixels(gapMm);
 }
 
-function drawTextLayoutItem(context: CanvasRenderingContext2D, item: TextLayoutItem, y: number): void {
+function drawTextLayoutItem(
+  context: CanvasRenderingContext2D,
+  item: TextLayoutItem,
+  y: number,
+  contentLeft: number,
+  contentRight: number,
+): void {
   context.font = `${item.weight} ${item.fontSize}px ${LABEL_FONT_FAMILY}`;
-  context.textAlign = "center";
+  context.textAlign = item.alignment;
   context.textBaseline = "middle";
   context.fillStyle = "#000000";
+  const x = item.alignment === "left"
+    ? contentLeft
+    : item.alignment === "right"
+      ? contentRight
+      : context.canvas.width / 2;
   item.lines.forEach((line, index) => {
-    context.fillText(line, context.canvas.width / 2, y + item.lineHeight * (index + 0.5));
+    context.fillText(line, x, y + item.lineHeight * (index + 0.5));
   });
+}
+
+function drawDetailsLayoutItem(
+  context: CanvasRenderingContext2D,
+  item: DetailsLayoutItem,
+  y: number,
+  contentLeft: number,
+  contentRight: number,
+): void {
+  context.textBaseline = "middle";
+  context.fillStyle = "#000000";
+  const variantY = item.stacked ? y + item.variantLineHeight / 2 : y + item.height / 2;
+  const priceY = item.stacked
+    ? y + item.variantLineHeight + item.rowGap + item.priceLineHeight / 2
+    : y + item.height / 2;
+  if (item.variant) {
+    context.font = `${item.variantWeight} ${item.variantFontSize}px ${LABEL_FONT_FAMILY}`;
+    context.textAlign = "left";
+    context.fillText(item.variant, contentLeft, variantY);
+  }
+  if (item.price) {
+    context.font = `${item.priceWeight} ${item.priceFontSize}px ${LABEL_FONT_FAMILY}`;
+    context.textAlign = "right";
+    context.fillText(item.price, contentRight, priceY);
+  }
 }
 
 function convertCanvasToMonochrome(canvas: HTMLCanvasElement): void {
@@ -158,47 +306,52 @@ export async function renderLabelCanvas(
   row: CsvRow,
   elements: LabelElement[],
   settings: LabelSettings,
-  dpi = LABEL_RENDER_DPI,
 ): Promise<HTMLCanvasElement> {
   validateLabelSettings(settings);
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(mmToPx(settings.widthMm, dpi), 1);
+  canvas.width = Math.max(mmToLabelRenderPixels(settings.widthMm), LABEL_RENDER_SCALE);
   const measureContext = canvas.getContext("2d");
   if (!measureContext) throw new Error("ラベル描画を初期化できませんでした。");
 
   const content = resolveContent(row, elements);
   if (!content.barcode) throw new Error("選択した商品のバーコード値が空です。");
 
-  const verticalMargin = mmToPx(settings.marginMm, dpi);
-  const horizontalMargin = mmToPx(calculateHorizontalMargin(settings.marginMm), dpi);
+  const verticalMargin = mmToLabelRenderPixels(settings.marginMm);
+  const horizontalMargin = mmToLabelRenderPixels(calculateHorizontalMargin(settings.marginMm));
   const maxWidth = Math.max(canvas.width - horizontalMargin * 2, 1);
-  const barcodeMaxHeight = mmToPx(LABEL_LAYOUT_MM.barcodeHeight, dpi);
+  const barcodeMaxHeight = mmToLabelRenderPixels(LABEL_LAYOUT_MM.barcodeHeight);
   const barcodeCanvas = await createCode128CanvasForPrinter(content.barcode, {
     maxWidthPx: maxWidth,
     targetHeightPx: barcodeMaxHeight,
-    renderDpi: dpi,
-    moduleScaleStep: Math.max(Math.round(dpi / LABEL_PRINT_DPI), 1),
+    renderDpi: LABEL_RENDER_DPI,
+    moduleScaleStep: LABEL_RENDER_SCALE,
   });
   const barcodeWidth = barcodeCanvas.width;
   const barcodeHeight = barcodeCanvas.height;
 
   const items: LayoutItem[] = [];
-  const addText = (text: string, style: TextLayoutStyle, section: LayoutSection) => {
-    const item = createTextLayoutItem(measureContext, text, style, section, maxWidth, dpi);
+  const addText = (
+    text: string,
+    style: TextLayoutStyle,
+    section: LayoutSection,
+    alignment: TextAlignment = "center",
+  ) => {
+    const item = createTextLayoutItem(measureContext, text, style, section, maxWidth, alignment);
     if (item) items.push(item);
   };
-  addText(content.brand, LABEL_LAYOUT_MM.brand, "product");
-  addText(content.productName, LABEL_LAYOUT_MM.productName, "product");
-  addText(content.variant, LABEL_LAYOUT_MM.variant, "product");
-  addText(content.price, LABEL_LAYOUT_MM.price, "price");
+  const productNameItem = createProductNameLayoutItem(measureContext, content.productName, maxWidth);
+  if (productNameItem) items.push(productNameItem);
+  const detailsItem = createDetailsLayoutItem(content.variantParts, content.price);
+  if (detailsItem) items.push(detailsItem);
   items.push({ type: "barcode", section: "barcode", canvas: barcodeCanvas, width: barcodeWidth, height: barcodeHeight });
   addText(content.barcodeValue || content.barcode, LABEL_LAYOUT_MM.barcodeValue, "barcode");
+  addText(content.brand, LABEL_LAYOUT_MM.brand, "footer");
 
   const contentHeight = items.reduce((total, item, index) => {
     const next = items[index + 1];
-    return total + item.height + (next ? getItemGap(item, next, dpi) : 0);
+    return total + item.height + (next ? getItemGap(item, next) : 0);
   }, 0);
-  canvas.height = Math.max(Math.ceil(verticalMargin * 2 + contentHeight), 1);
+  canvas.height = ceilToPrinterDot(verticalMargin * 2 + contentHeight);
   const context = canvas.getContext("2d");
   if (!context) throw new Error("ラベル描画を初期化できませんでした。");
   context.fillStyle = "#ffffff";
@@ -207,14 +360,16 @@ export async function renderLabelCanvas(
   let y = verticalMargin;
   items.forEach((item, index) => {
     if (item.type === "text") {
-      drawTextLayoutItem(context, item, y);
+      drawTextLayoutItem(context, item, y, horizontalMargin, canvas.width - horizontalMargin);
+    } else if (item.type === "details") {
+      drawDetailsLayoutItem(context, item, y, horizontalMargin, canvas.width - horizontalMargin);
     } else {
       context.imageSmoothingEnabled = false;
       context.drawImage(item.canvas, Math.floor((canvas.width - item.width) / 2), y);
     }
     y += item.height;
     const next = items[index + 1];
-    if (next) y += getItemGap(item, next, dpi);
+    if (next) y += getItemGap(item, next);
   });
   convertCanvasToMonochrome(canvas);
   return canvas;
@@ -269,7 +424,7 @@ export async function generateLabelsPdf(
 
   for (const { canvas, copies } of renderedEntries) {
     const image = await pdf.embedPng(canvas.toDataURL("image/png"));
-    const pageHeight = canvas.height * 72 / LABEL_RENDER_DPI;
+    const pageHeight = mmToPt(labelRenderPixelsToMm(canvas.height));
     for (let copy = 0; copy < copies; copy += 1) {
       const page = pdf.addPage([pageWidth, pageHeight]);
       page.drawImage(image, { x: 0, y: 0, width: pageWidth, height: pageHeight });
@@ -294,7 +449,7 @@ export async function generateDirectPrintPages(
   ]);
   const widthMm = roundPrintDimensionMm(settings.widthMm);
   const pageTemplates = await Promise.all(renderedEntries.map(async ({ canvas, copies }) => {
-    const heightMm = roundPrintDimensionMm(canvas.height * 25.4 / LABEL_RENDER_DPI);
+    const heightMm = roundPrintDimensionMm(labelRenderPixelsToMm(canvas.height));
     const [pageWidth, pageHeight] = createPdfPageSize(widthMm, heightMm);
     const pdf = await PDFDocument.create();
     pdf.setTitle("mC-Label3 Print");

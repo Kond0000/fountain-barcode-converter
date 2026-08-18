@@ -16,6 +16,7 @@ export const DEFAULT_LABEL_SETTINGS: LabelSettings = {
 };
 
 export const HORIZONTAL_MARGIN_RATIO = 0.8;
+export const PRODUCT_NAME_MAX_CHARACTERS_PER_LINE = 28;
 
 export function calculateHorizontalMargin(verticalMarginMm: number): number {
   if (!Number.isFinite(verticalMarginMm) || verticalMarginMm <= 0) return 0;
@@ -23,15 +24,15 @@ export function calculateHorizontalMargin(verticalMarginMm: number): number {
 }
 
 export const LABEL_LAYOUT_MM = {
-  itemGap: 1.2,
-  sectionGap: 2.4,
-  barcodeValueGap: 0.8,
-  brand: { fontSize: 2.8, lineHeight: 3.6, weight: 600 },
-  productName: { fontSize: 3.8, minFontSize: 1, lineHeight: 4.8, weight: 700 },
-  variant: { fontSize: 3, lineHeight: 3.8, weight: 500 },
-  price: { fontSize: 4.8, lineHeight: 6, weight: 700 },
-  barcodeHeight: 12,
-  barcodeValue: { fontSize: 2.8, lineHeight: 3.5, weight: 500 },
+  itemGap: 0.9,
+  sectionGap: 1.8,
+  barcodeValueGap: 0.6,
+  brand: { fontSize: 2.5, lineHeight: 3.2, weight: 600 },
+  productName: { fontSize: 3.2, minFontSize: 3, lineHeight: 4, weight: 500 },
+  variant: { fontSize: 2.8, lineHeight: 3.6, weight: 500 },
+  price: { fontSize: 3.8, lineHeight: 4.8, weight: 600 },
+  barcodeHeight: 11.5,
+  barcodeValue: { fontSize: 2.4, lineHeight: 3, weight: 500 },
 } as const;
 
 export function createDefaultLabelElements(mapping: FieldMapping): LabelElement[] {

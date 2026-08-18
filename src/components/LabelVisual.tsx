@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createCode128CanvasForPrinter } from "../lib/barcode/generateCode128";
 import { formatPrice } from "../lib/format";
-import { fitTextToSingleLine, LABEL_FONT_FAMILY, normalizeSingleLineText } from "../lib/label/fitText";
+import { LABEL_FONT_FAMILY } from "../lib/label/fitText";
+import { shouldStackDetailsRow } from "../lib/label/layoutDetailsRow";
+import { layoutProductName } from "../lib/label/layoutProductName";
 import type { CsvRow } from "../types/csv";
-import { calculateHorizontalMargin, LABEL_LAYOUT_MM, type LabelSettings } from "../types/label";
+import {
+  calculateHorizontalMargin,
+  LABEL_LAYOUT_MM,
+  PRODUCT_NAME_MAX_CHARACTERS_PER_LINE,
+  type LabelSettings,
+} from "../types/label";
 import type { FieldMapping } from "../types/mapping";
 
 type LabelVisualProps = {
@@ -25,13 +32,9 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
   const brand = mapping.brand ? row[mapping.brand] ?? "" : "";
   const productName = mapping.productName ? row[mapping.productName] ?? "" : "";
   const price = mapping.price ? formatPrice(row[mapping.price] ?? "") : "";
-  const variant = useMemo(
-    () => [mapping.color, mapping.size]
-      .map((field) => field ? row[field]?.trim() : "")
-      .filter(Boolean)
-      .join(" / "),
-    [mapping.color, mapping.size, row],
-  );
+  const color = mapping.color ? row[mapping.color]?.trim() ?? "" : "";
+  const size = mapping.size ? row[mapping.size]?.trim() ?? "" : "";
+  const variant = [color, size].filter(Boolean).join(" / ");
 
   const safeWidth = Number.isFinite(settings.widthMm) ? Math.max(settings.widthMm, 0) : 0;
   const safeVerticalMargin = Number.isFinite(settings.marginMm) ? Math.max(settings.marginMm, 0) : 0;
@@ -40,12 +43,12 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
   const previewScale = safeWidth > 0 ? previewWidth / safeWidth : PREVIEW_PIXELS_PER_MM;
   const verticalPaddingPx = safeVerticalMargin * previewScale;
   const horizontalPaddingPx = safeHorizontalMargin * previewScale;
-  const previewBarcodeMaxWidth = Math.max(
+  const previewContentWidth = Math.max(
     (safeWidth - safeHorizontalMargin * 2) * previewScale - 2,
     1,
   );
+  const previewBarcodeMaxWidth = previewContentWidth;
   const previewBarcodeHeight = LABEL_LAYOUT_MM.barcodeHeight * previewScale;
-  const productNameText = normalizeSingleLineText(productName);
   const productNameLayout = useMemo(() => {
     const preferredFontSize = LABEL_LAYOUT_MM.productName.fontSize * previewScale;
     const preferredLineHeight = LABEL_LAYOUT_MM.productName.lineHeight * previewScale;
@@ -53,22 +56,25 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
     const context = canvas.getContext("2d");
     if (!context) {
       return {
-        text: productNameText,
+        lines: [productName],
         fontSize: preferredFontSize,
         lineHeight: preferredLineHeight,
-        shouldWrap: true,
       };
     }
-    context.font = `${LABEL_LAYOUT_MM.productName.weight} ${preferredFontSize}px ${LABEL_FONT_FAMILY}`;
-    return fitTextToSingleLine({
-      text: productNameText,
-      maxWidth: Math.max((safeWidth - safeHorizontalMargin * 2) * previewScale - 2, 1),
+    return layoutProductName({
+      text: productName,
+      maxCharacters: PRODUCT_NAME_MAX_CHARACTERS_PER_LINE,
+      maxWidth: previewContentWidth,
       preferredFontSize,
       preferredLineHeight,
       minFontSize: LABEL_LAYOUT_MM.productName.minFontSize * previewScale,
-      measureAtPreferredSize: (value) => context.measureText(value).width,
+      measure: (value, fontSize) => {
+        context.font = `${LABEL_LAYOUT_MM.productName.weight} ${fontSize}px ${LABEL_FONT_FAMILY}`;
+        return context.measureText(value).width;
+      },
     });
-  }, [previewScale, productNameText, safeHorizontalMargin, safeWidth]);
+  }, [previewContentWidth, previewScale, productName]);
+  const detailsStacked = shouldStackDetailsRow({ variant, price });
 
   useEffect(() => {
     let cancelled = false;
@@ -141,32 +147,43 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
         width: `${previewWidth}px`,
       }}
     >
-      {brand || productName || variant ? (
+      {productName || variant || price ? (
         <div
           className="preview-content-group preview-product-group"
           style={{ gap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px` }}
         >
-          {brand ? <span className="preview-brand" style={textStyle(LABEL_LAYOUT_MM.brand.fontSize, LABEL_LAYOUT_MM.brand.lineHeight)}>{brand}</span> : null}
-          {productNameText ? (
+          {productName ? (
             <strong
               className="preview-name"
               style={{
                 fontFamily: LABEL_FONT_FAMILY,
                 fontSize: `${productNameLayout.fontSize}px`,
                 lineHeight: `${productNameLayout.lineHeight}px`,
-                overflowWrap: productNameLayout.shouldWrap ? "anywhere" : "normal",
-                whiteSpace: productNameLayout.shouldWrap ? "normal" : "nowrap",
               }}
             >
-              {productNameLayout.text}
+              {productNameLayout.lines.map((line, index) => (
+                <span className="preview-name-line" key={`${line}-${index}`}>{line}</span>
+              ))}
             </strong>
           ) : null}
-          {variant ? <span className="preview-variant" style={textStyle(LABEL_LAYOUT_MM.variant.fontSize, LABEL_LAYOUT_MM.variant.lineHeight)}>{variant}</span> : null}
-        </div>
-      ) : null}
-      {price ? (
-        <div className="preview-content-group preview-price-group">
-          <strong className="preview-price" style={textStyle(LABEL_LAYOUT_MM.price.fontSize, LABEL_LAYOUT_MM.price.lineHeight)}>{price}</strong>
+          {variant || price ? (
+            <span
+              className={`preview-details-row ${detailsStacked ? "is-stacked" : ""}`}
+              style={{
+                columnGap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px`,
+                rowGap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px`,
+              }}
+            >
+              {variant ? (
+                <span className="preview-variant-container" style={textStyle(LABEL_LAYOUT_MM.variant.fontSize, LABEL_LAYOUT_MM.variant.lineHeight)}>
+                  {variant}
+                </span>
+              ) : <span />}
+              {price ? (
+                <strong className="preview-price" style={textStyle(LABEL_LAYOUT_MM.price.fontSize, LABEL_LAYOUT_MM.price.lineHeight)}>{price}</strong>
+              ) : null}
+            </span>
+          ) : null}
         </div>
       ) : null}
       <div
@@ -184,6 +201,11 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
         {barcodeError ? <span className="preview-error">{barcodeError}</span> : null}
         {barcodeValue ? <span className="preview-code" style={textStyle(LABEL_LAYOUT_MM.barcodeValue.fontSize, LABEL_LAYOUT_MM.barcodeValue.lineHeight)}>{barcodeValue}</span> : null}
       </div>
+      {brand ? (
+        <div className="preview-content-group preview-brand-group">
+          <span className="preview-brand" style={textStyle(LABEL_LAYOUT_MM.brand.fontSize, LABEL_LAYOUT_MM.brand.lineHeight)}>{brand}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

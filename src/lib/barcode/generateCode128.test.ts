@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateBwipHeightMm, calculateIntegerModuleScale } from "./generateCode128";
+import {
+  calculateBwipHeightMm,
+  calculateIntegerModuleScale,
+  calculatePrinterAlignedWidth,
+} from "./generateCode128";
 
 describe("printer-native CODE128 sizing", () => {
   it("uses the largest whole-dot module width that fits", () => {
@@ -10,6 +14,12 @@ describe("printer-native CODE128 sizing", () => {
   it("keeps supersampled module widths aligned to native printer dots", () => {
     expect(calculateIntegerModuleScale(100, 550, 2)).toBe(4);
     expect(calculateIntegerModuleScale(100, 650, 2)).toBe(6);
+  });
+
+  it("uses the full printable width while keeping edges on printer dots", () => {
+    expect(calculatePrinterAlignedWidth(550, 2)).toBe(550);
+    expect(calculatePrinterAlignedWidth(551, 2)).toBe(550);
+    expect(calculatePrinterAlignedWidth(201.8)).toBe(201);
   });
 
   it("never shrinks a module below one printer dot", () => {
