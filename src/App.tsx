@@ -172,7 +172,6 @@ export default function App() {
             <FieldMappingPanel headers={csvData.headers} mapping={mapping} onChange={updateMapping} />
             <ProductGrid
               rows={csvData.rows}
-              headers={csvData.headers}
               rowStates={rowStates}
               mapping={mapping}
               activeRowIndex={activeRowIndex}
