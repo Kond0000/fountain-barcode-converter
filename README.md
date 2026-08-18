@@ -2,7 +2,7 @@
 
 任意のCSVヘッダーを動的に解析し、CSV列をラベル項目へ割り当てて、CODE128ラベルPDFをブラウザ内で生成するReact / TypeScript / Viteアプリです。
 
-PDFはmC-Label3の203dpiに合わせた白黒画像として生成し、CODE128は拡大縮小せず、バー幅を整数ドット単位で描画します。
+PDFはmC-Label3の203dpiドットに合わせた2倍解像度（406dpi）の白黒画像として生成し、CODE128は203dpi換算でバー幅が整数ドットになるよう描画します。
 
 - 公開リポジトリ: <https://github.com/Kond0000/fountain-barcode-converter>
 - 本番環境: [Cloudflare Pages](https://fountain-barcode-converter.pages.dev/)（GitHubの`main`ブランチから自動デプロイ）
