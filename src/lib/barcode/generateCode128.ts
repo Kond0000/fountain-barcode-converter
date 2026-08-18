@@ -11,13 +11,27 @@ export type PrinterBarcodeCanvasOptions = {
   maxWidthPx: number;
   targetHeightPx: number;
   renderDpi: number;
+  moduleScaleStep?: number;
 };
 
-export function calculateIntegerModuleScale(baseWidthPx: number, maxWidthPx: number): number {
-  if (!Number.isFinite(baseWidthPx) || !Number.isFinite(maxWidthPx) || baseWidthPx <= 0 || maxWidthPx <= 0) {
+export function calculateIntegerModuleScale(
+  baseWidthPx: number,
+  maxWidthPx: number,
+  scaleStep = 1,
+): number {
+  if (
+    !Number.isFinite(baseWidthPx)
+    || !Number.isFinite(maxWidthPx)
+    || !Number.isFinite(scaleStep)
+    || baseWidthPx <= 0
+    || maxWidthPx <= 0
+    || scaleStep < 1
+  ) {
     throw new Error("バーコードの描画サイズが不正です。");
   }
-  const scale = Math.floor(maxWidthPx / baseWidthPx);
+  const safeScaleStep = Math.max(Math.round(scaleStep), 1);
+  const maxScale = Math.floor(maxWidthPx / baseWidthPx);
+  const scale = maxScale - (maxScale % safeScaleStep);
   if (scale < 1) {
     throw new Error("バーコードがラベル幅に収まりません。横幅または余白を調整してください。");
   }
@@ -64,7 +78,11 @@ export async function createCode128CanvasForPrinter(
   options: PrinterBarcodeCanvasOptions,
 ): Promise<HTMLCanvasElement> {
   const probe = await createCode128Canvas(value, { scaleX: 1, scaleY: 1, heightMm: 1 });
-  const scaleX = calculateIntegerModuleScale(probe.width, options.maxWidthPx);
+  const scaleX = calculateIntegerModuleScale(
+    probe.width,
+    options.maxWidthPx,
+    options.moduleScaleStep,
+  );
   const scaleY = Math.max(Math.round(options.renderDpi / POINTS_PER_INCH), 1);
   return createCode128Canvas(value, {
     scaleX,

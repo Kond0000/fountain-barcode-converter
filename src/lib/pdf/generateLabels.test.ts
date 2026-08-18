@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { calculateLabelPageCount, createPdfPageSize, LABEL_PRINT_DPI } from "./generateLabels";
+import {
+  calculateLabelPageCount,
+  createPdfPageSize,
+  LABEL_PRINT_DPI,
+  LABEL_RENDER_DPI,
+} from "./generateLabels";
 
 describe("label PDF metadata", () => {
   it("renders labels at the mC-Label3 native 203 dpi", () => {
     expect(LABEL_PRINT_DPI).toBe(203);
+  });
+
+  it("creates a 2x raster source while preserving the 203 dpi printer grid", () => {
+    expect(LABEL_RENDER_DPI).toBe(406);
+    expect(LABEL_RENDER_DPI / LABEL_PRINT_DPI).toBe(2);
   });
 
   it("uses exact 60 x 66.72 mm page dimensions", () => {

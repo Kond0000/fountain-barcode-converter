@@ -155,7 +155,7 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .preview-name { font-weight: 700; }
 .preview-variant { font-weight: 500; }
 .preview-price { font-weight: 700; }
-.preview-barcode { display: block; width: 90%; max-width: 100%; object-fit: fill; image-rendering: crisp-edges; flex: 0 0 auto; }
+.preview-barcode { display: block; width: auto; max-width: 100%; height: auto; object-fit: none; image-rendering: pixelated; flex: 0 0 auto; }
 .preview-barcode.has-error { display: none; }
 .preview-code { font-weight: 500; }
 .preview-error { color: var(--danger); font-size: 11px; }

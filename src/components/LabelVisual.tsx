@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { generateCode128Canvas } from "../lib/barcode/generateCode128";
+import { createCode128CanvasForPrinter } from "../lib/barcode/generateCode128";
 import { formatPrice } from "../lib/format";
 import { fitTextToSingleLine, LABEL_FONT_FAMILY, normalizeSingleLineText } from "../lib/label/fitText";
 import type { CsvRow } from "../types/csv";
@@ -20,6 +20,7 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const [barcodeError, setBarcodeError] = useState("");
+  const [barcodeDisplaySize, setBarcodeDisplaySize] = useState<{ width: number; height: number } | null>(null);
   const barcodeValue = mapping.barcode ? row[mapping.barcode] ?? "" : "";
   const brand = mapping.brand ? row[mapping.brand] ?? "" : "";
   const productName = mapping.productName ? row[mapping.productName] ?? "" : "";
@@ -32,21 +33,6 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
     [mapping.color, mapping.size, row],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    const canvas = canvasRef.current;
-    if (!canvas || !barcodeValue) {
-      setBarcodeError(barcodeValue ? "" : "バーコード値がありません");
-      return () => { cancelled = true; };
-    }
-    void generateCode128Canvas(barcodeValue, canvas, { scale: 3, heightMm: 9 })
-      .then(() => { if (!cancelled) setBarcodeError(""); })
-      .catch((error: unknown) => {
-        if (!cancelled) setBarcodeError(error instanceof Error ? error.message : "バーコードを表示できません");
-      });
-    return () => { cancelled = true; };
-  }, [barcodeValue]);
-
   const safeWidth = Number.isFinite(settings.widthMm) ? Math.max(settings.widthMm, 0) : 0;
   const safeVerticalMargin = Number.isFinite(settings.marginMm) ? Math.max(settings.marginMm, 0) : 0;
   const safeHorizontalMargin = calculateHorizontalMargin(safeVerticalMargin);
@@ -54,6 +40,11 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
   const previewScale = safeWidth > 0 ? previewWidth / safeWidth : PREVIEW_PIXELS_PER_MM;
   const verticalPaddingPx = safeVerticalMargin * previewScale;
   const horizontalPaddingPx = safeHorizontalMargin * previewScale;
+  const previewBarcodeMaxWidth = Math.max(
+    (safeWidth - safeHorizontalMargin * 2) * previewScale - 2,
+    1,
+  );
+  const previewBarcodeHeight = LABEL_LAYOUT_MM.barcodeHeight * previewScale;
   const productNameText = normalizeSingleLineText(productName);
   const productNameLayout = useMemo(() => {
     const preferredFontSize = LABEL_LAYOUT_MM.productName.fontSize * previewScale;
@@ -78,6 +69,44 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
       measureAtPreferredSize: (value) => context.measureText(value).width,
     });
   }, [previewScale, productNameText, safeHorizontalMargin, safeWidth]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const canvas = canvasRef.current;
+    if (!canvas || !barcodeValue) {
+      setBarcodeDisplaySize(null);
+      setBarcodeError(barcodeValue ? "" : "バーコード値がありません");
+      return () => { cancelled = true; };
+    }
+
+    const pixelRatio = Math.max(window.devicePixelRatio || 1, 1);
+    void createCode128CanvasForPrinter(barcodeValue, {
+      maxWidthPx: Math.max(Math.floor(previewBarcodeMaxWidth * pixelRatio), 1),
+      targetHeightPx: Math.max(Math.round(previewBarcodeHeight * pixelRatio), 1),
+      renderDpi: previewScale * 25.4 * pixelRatio,
+    })
+      .then((renderedCanvas) => {
+        if (cancelled) return;
+        canvas.width = renderedCanvas.width;
+        canvas.height = renderedCanvas.height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("バーコードを表示できません");
+        context.imageSmoothingEnabled = false;
+        context.drawImage(renderedCanvas, 0, 0);
+        setBarcodeDisplaySize({
+          width: renderedCanvas.width / pixelRatio,
+          height: renderedCanvas.height / pixelRatio,
+        });
+        setBarcodeError("");
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setBarcodeDisplaySize(null);
+          setBarcodeError(error instanceof Error ? error.message : "バーコードを表示できません");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [barcodeValue, previewBarcodeHeight, previewBarcodeMaxWidth, previewScale]);
 
   useEffect(() => {
     if (!onHeightChange) return undefined;
@@ -147,7 +176,9 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
         <canvas
           ref={canvasRef}
           className={`preview-barcode ${barcodeError ? "has-error" : ""}`}
-          style={{ height: `${LABEL_LAYOUT_MM.barcodeHeight * previewScale}px` }}
+          style={barcodeDisplaySize
+            ? { width: `${barcodeDisplaySize.width}px`, height: `${barcodeDisplaySize.height}px` }
+            : { height: `${previewBarcodeHeight}px` }}
           aria-label={`CODE128 ${barcodeValue}`}
         />
         {barcodeError ? <span className="preview-error">{barcodeError}</span> : null}

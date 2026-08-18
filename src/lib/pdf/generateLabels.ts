@@ -16,6 +16,7 @@ export type DirectPrintPagePdf = {
 export type DirectPrintPages = { pages: DirectPrintPagePdf[] };
 
 export const LABEL_PRINT_DPI = 203;
+export const LABEL_RENDER_DPI = LABEL_PRINT_DPI * 2;
 
 function resolveContent(row: CsvRow, elements: LabelElement[]) {
   const content = {
@@ -157,7 +158,7 @@ export async function renderLabelCanvas(
   row: CsvRow,
   elements: LabelElement[],
   settings: LabelSettings,
-  dpi = LABEL_PRINT_DPI,
+  dpi = LABEL_RENDER_DPI,
 ): Promise<HTMLCanvasElement> {
   validateLabelSettings(settings);
   const canvas = document.createElement("canvas");
@@ -176,6 +177,7 @@ export async function renderLabelCanvas(
     maxWidthPx: maxWidth,
     targetHeightPx: barcodeMaxHeight,
     renderDpi: dpi,
+    moduleScaleStep: Math.max(Math.round(dpi / LABEL_PRINT_DPI), 1),
   });
   const barcodeWidth = barcodeCanvas.width;
   const barcodeHeight = barcodeCanvas.height;
@@ -267,7 +269,7 @@ export async function generateLabelsPdf(
 
   for (const { canvas, copies } of renderedEntries) {
     const image = await pdf.embedPng(canvas.toDataURL("image/png"));
-    const pageHeight = canvas.height * 72 / LABEL_PRINT_DPI;
+    const pageHeight = canvas.height * 72 / LABEL_RENDER_DPI;
     for (let copy = 0; copy < copies; copy += 1) {
       const page = pdf.addPage([pageWidth, pageHeight]);
       page.drawImage(image, { x: 0, y: 0, width: pageWidth, height: pageHeight });
@@ -292,7 +294,7 @@ export async function generateDirectPrintPages(
   ]);
   const widthMm = roundPrintDimensionMm(settings.widthMm);
   const pageTemplates = await Promise.all(renderedEntries.map(async ({ canvas, copies }) => {
-    const heightMm = roundPrintDimensionMm(canvas.height * 25.4 / LABEL_PRINT_DPI);
+    const heightMm = roundPrintDimensionMm(canvas.height * 25.4 / LABEL_RENDER_DPI);
     const [pageWidth, pageHeight] = createPdfPageSize(widthMm, heightMm);
     const pdf = await PDFDocument.create();
     pdf.setTitle("mC-Label3 Print");
