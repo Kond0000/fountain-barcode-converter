@@ -19,6 +19,17 @@ type ProductGridProps = {
   onToggleMany: (indices: number[], selected: boolean) => void;
 };
 
+export function createProductColumns(mapping: FieldMapping): ProductColumn[] {
+  return [
+    mapping.barcode && { key: "barcode", label: "バーコード", field: mapping.barcode },
+    mapping.productName && { key: "productName", label: "商品名", field: mapping.productName },
+    mapping.brand && { key: "brand", label: "ブランド", field: mapping.brand },
+    mapping.color && { key: "color", label: "カラー", field: mapping.color },
+    mapping.size && { key: "size", label: "サイズ", field: mapping.size },
+    mapping.price && { key: "price", label: "価格", field: mapping.price, kind: "price" as const },
+  ].filter((column): column is ProductColumn => Boolean(column));
+}
+
 export function ProductGrid({
   rows,
   rowStates,
@@ -32,13 +43,7 @@ export function ProductGrid({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const columns = useMemo<ProductColumn[]>(
-    () => [
-      mapping.barcode && { key: "barcode", label: "バーコード", field: mapping.barcode },
-      mapping.productName && { key: "productName", label: "商品名", field: mapping.productName },
-      mapping.color && { key: "color", label: "カラー", field: mapping.color },
-      mapping.size && { key: "size", label: "サイズ", field: mapping.size },
-      mapping.price && { key: "price", label: "価格", field: mapping.price, kind: "price" as const },
-    ].filter((column): column is ProductColumn => Boolean(column)),
+    () => createProductColumns(mapping),
     [mapping],
   );
 
