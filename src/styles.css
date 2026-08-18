@@ -119,11 +119,14 @@ input[type="checkbox"] { appearance: none; width: 18px; height: 18px; margin: 0;
 input[type="checkbox"]::before { content: ""; width: 9px; height: 5px; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) scale(0); transition: transform 100ms ease; }
 input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); }
 input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
-.data-row { position: relative; cursor: default; }
+.data-row { position: relative; cursor: pointer; transition: box-shadow 120ms ease; }
 .data-row:hover > div { background: #f6fbfb; }
 .data-row.is-selected > div { background: #f0f8f8; }
 .data-row.is-selected::before { content: ""; position: absolute; z-index: 1; inset: 0 auto 0 0; width: 4px; background: var(--accent); }
-.data-row.is-active > div { border-bottom-color: #62adb5; }
+.data-row.is-active { z-index: 2; }
+.data-row.is-active > div { background: #dff2f4; border-bottom-color: #62adb5; }
+.data-row.is-active::after { content: ""; position: absolute; z-index: 2; inset: 0; border: 2px solid var(--accent); box-shadow: 0 2px 7px rgba(0, 100, 110, 0.18); pointer-events: none; }
+.data-row.is-active .copies-cell input { border-color: var(--accent); }
 .data-cell { display: block !important; line-height: 28px; }
 .copies-cell { justify-content: center; }
 .copies-cell input { width: 64px; min-height: 30px; padding: 3px 5px 3px 8px; }

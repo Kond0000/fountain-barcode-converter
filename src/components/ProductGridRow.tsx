@@ -35,6 +35,8 @@ export function ProductGridRow({
       className={`product-grid-row data-row ${state.selected ? "is-selected" : ""} ${active ? "is-active" : ""}`}
       style={{ "--product-columns": template } as CSSProperties}
       role="row"
+      aria-current={active ? "true" : undefined}
+      title={active ? "この商品をプレビュー中" : "クリックしてプレビュー"}
       onClick={() => onActivate(index)}
     >
       <div role="gridcell" className="checkbox-cell" onClick={stop}>
@@ -44,6 +46,7 @@ export function ProductGridRow({
           aria-label={`${rowName}を印刷対象にする`}
           onChange={(event) => onSelectedChange(index, event.target.checked)}
         />
+        {active ? <span className="visually-hidden">プレビュー中</span> : null}
       </div>
       {columns.map((column) => {
         const raw = row[column.field] ?? "";
