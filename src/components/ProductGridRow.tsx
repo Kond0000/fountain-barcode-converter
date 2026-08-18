@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent } from "react";
 import type { CsvRow, RowState } from "../types/csv";
 import { formatPrice } from "../lib/format";
+import { formatVariantValue } from "../lib/label/formatVariant";
 
 export type ProductColumn = { key: string; label: string; field: string; kind?: "price" };
 
@@ -46,9 +47,14 @@ export function ProductGridRow({
       </div>
       {columns.map((column) => {
         const raw = row[column.field] ?? "";
+        const content = column.kind === "price"
+          ? formatPrice(raw)
+          : column.key === "color" || column.key === "size"
+            ? formatVariantValue(raw)
+            : raw || "—";
         return (
           <div role="gridcell" className="data-cell" title={raw} key={column.key}>
-            {column.kind === "price" ? formatPrice(raw) : raw || "—"}
+            {content}
           </div>
         );
       })}

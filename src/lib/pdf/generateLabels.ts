@@ -1,6 +1,7 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
 import { fitTextToSingleLine, LABEL_FONT_FAMILY } from "../label/fitText";
+import { formatVariantValue } from "../label/formatVariant";
 import { shouldStackDetailsRow } from "../label/layoutDetailsRow";
 import { layoutProductName } from "../label/layoutProductName";
 import { wrapTextLines } from "../label/wrapText";
@@ -60,8 +61,7 @@ function resolveContent(row: CsvRow, elements: LabelElement[]) {
       content.barcode = row[element.sourceField] ?? "";
     } else if (element.type === "compositeText") {
       content.variantParts = element.sourceFields
-        .map((field) => row[field]?.trim())
-        .filter(Boolean);
+        .map((field) => formatVariantValue(row[field]));
     } else {
       const value = row[element.sourceField] ?? "";
       if (element.role === "price") content.price = formatPrice(value);

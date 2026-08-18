@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createCode128CanvasForPrinter } from "../lib/barcode/generateCode128";
 import { formatPrice } from "../lib/format";
 import { LABEL_FONT_FAMILY } from "../lib/label/fitText";
+import { formatVariantValue } from "../lib/label/formatVariant";
 import { shouldStackDetailsRow } from "../lib/label/layoutDetailsRow";
 import { layoutProductName } from "../lib/label/layoutProductName";
 import type { CsvRow } from "../types/csv";
@@ -32,8 +33,8 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
   const brand = mapping.brand ? row[mapping.brand] ?? "" : "";
   const productName = mapping.productName ? row[mapping.productName] ?? "" : "";
   const price = mapping.price ? formatPrice(row[mapping.price] ?? "") : "";
-  const color = mapping.color ? row[mapping.color]?.trim() ?? "" : "";
-  const size = mapping.size ? row[mapping.size]?.trim() ?? "" : "";
+  const color = mapping.color ? formatVariantValue(row[mapping.color]) : "";
+  const size = mapping.size ? formatVariantValue(row[mapping.size]) : "";
   const variant = [color, size].filter(Boolean).join(" / ");
 
   const safeWidth = Number.isFinite(settings.widthMm) ? Math.max(settings.widthMm, 0) : 0;
