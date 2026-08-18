@@ -1,12 +1,12 @@
 import type { CSSProperties, MouseEvent } from "react";
 import type { CsvRow, RowState } from "../types/csv";
 import { formatPrice } from "../lib/format";
-
-export type ProductColumn = { key: string; label: string; field: string; kind?: "price" };
+import type { ProductColumn } from "../lib/csv/productColumns";
 
 type ProductGridRowProps = {
   row: CsvRow;
   index: number;
+  rowLabel: string;
   state: RowState;
   columns: ProductColumn[];
   template: string;
@@ -19,6 +19,7 @@ type ProductGridRowProps = {
 export function ProductGridRow({
   row,
   index,
+  rowLabel,
   state,
   columns,
   template,
@@ -28,7 +29,6 @@ export function ProductGridRow({
   onCopiesChange,
 }: ProductGridRowProps) {
   const stop = (event: MouseEvent) => event.stopPropagation();
-  const rowName = row[columns[0]?.field] || String(index + 1);
   return (
     <div
       className={`product-grid-row data-row ${state.selected ? "is-selected" : ""} ${active ? "is-active" : ""}`}
@@ -40,7 +40,7 @@ export function ProductGridRow({
         <input
           type="checkbox"
           checked={state.selected}
-          aria-label={`${rowName}を印刷対象にする`}
+          aria-label={`${rowLabel}を印刷対象にする`}
           onChange={(event) => onSelectedChange(index, event.target.checked)}
         />
       </div>
@@ -59,7 +59,7 @@ export function ProductGridRow({
           max="999"
           step="1"
           value={state.copies}
-          aria-label={`${rowName}の印刷枚数`}
+          aria-label={`${rowLabel}の印刷枚数`}
           onChange={(event) => onCopiesChange(index, Number(event.target.value))}
         />
       </div>

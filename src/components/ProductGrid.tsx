@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  createDefaultVisibleFields,
+  createProductColumns,
+  getMappedGridFields,
+} from "../lib/csv/productColumns";
 import { searchRows } from "../lib/csv/searchRows";
 import type { CsvRow, RowState } from "../types/csv";
 import type { FieldMapping } from "../types/mapping";
 import { ChevronIcon } from "./Icons";
-import { ProductGridRow, type ProductColumn } from "./ProductGridRow";
+import { ProductGridRow } from "./ProductGridRow";
 import { SearchBar } from "./SearchBar";
 
 const PAGE_SIZE = 10;
 
 type ProductGridProps = {
   rows: CsvRow[];
+  headers: string[];
   rowStates: RowState[];
   mapping: FieldMapping;
   activeRowIndex: number;
@@ -21,6 +27,7 @@ type ProductGridProps = {
 
 export function ProductGrid({
   rows,
+  headers,
   rowStates,
   mapping,
   activeRowIndex,
@@ -31,16 +38,29 @@ export function ProductGrid({
 }: ProductGridProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const columns = useMemo<ProductColumn[]>(
-    () => [
-      mapping.barcode && { key: "barcode", label: "バーコード", field: mapping.barcode },
-      mapping.productName && { key: "productName", label: "商品名", field: mapping.productName },
-      mapping.color && { key: "color", label: "カラー", field: mapping.color },
-      mapping.size && { key: "size", label: "サイズ", field: mapping.size },
-      mapping.price && { key: "price", label: "価格", field: mapping.price, kind: "price" as const },
-    ].filter((column): column is ProductColumn => Boolean(column)),
-    [mapping],
+  const [visibleFields, setVisibleFields] = useState<Set<string>>(
+    () => new Set(createDefaultVisibleFields(headers, mapping)),
   );
+  const mappedFields = useMemo(
+    () => getMappedGridFields(mapping),
+    [mapping.barcode, mapping.brand, mapping.color, mapping.price, mapping.productName, mapping.size],
+  );
+  const columns = useMemo(
+    () => createProductColumns(headers, mapping, visibleFields),
+    [headers, mapping, visibleFields],
+  );
+
+  useEffect(() => {
+    setVisibleFields(new Set(createDefaultVisibleFields(headers, mapping)));
+  }, [headers]);
+
+  useEffect(() => {
+    setVisibleFields((current) => {
+      const next = new Set(current);
+      mappedFields.forEach((field) => next.add(field));
+      return next;
+    });
+  }, [mappedFields]);
 
   const filtered = useMemo(() => searchRows(rows, query), [query, rows]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -56,12 +76,50 @@ export function ProductGrid({
   ].join(" ");
   const first = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const last = Math.min(page * PAGE_SIZE, filtered.length);
+  const identityField = mapping.barcode || mapping.productName || headers[0];
+
+  const setFieldVisible = (field: string, visibleField: boolean) => {
+    setVisibleFields((current) => {
+      const next = new Set(current);
+      if (visibleField) next.add(field);
+      else next.delete(field);
+      return next;
+    });
+  };
 
   return (
     <section className="product-panel" aria-label="商品データ">
       <div className="product-toolbar">
         <SearchBar value={query} onChange={setQuery} />
-        <span>{filtered.length} 件</span>
+        <div className="product-toolbar-meta">
+          <span>{filtered.length} 件</span>
+          <details className="column-visibility">
+            <summary>表示列 <strong>{columns.length}/{headers.length}</strong></summary>
+            <div className="column-visibility-menu">
+              <div className="column-visibility-heading">
+                <strong>一覧に表示する列</strong>
+                <span>選択と枚数は常に表示</span>
+              </div>
+              <div className="column-visibility-options" role="group" aria-label="商品一覧の表示列">
+                {headers.map((header) => (
+                  <label key={header} title={header}>
+                    <input
+                      type="checkbox"
+                      checked={visibleFields.has(header)}
+                      aria-label={`${header}を表示`}
+                      onChange={(event) => setFieldVisible(header, event.target.checked)}
+                    />
+                    <span>{header}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="column-visibility-actions">
+                <button type="button" onClick={() => setVisibleFields(new Set(createDefaultVisibleFields(headers, mapping)))}>主要項目に戻す</button>
+                <button type="button" onClick={() => setVisibleFields(new Set(headers))}>すべて表示</button>
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
       <div className="product-grid-scroll" role="grid" aria-label="商品一覧">
         <div className="product-grid-row header-row" style={{ "--product-columns": template } as CSSProperties} role="row">
@@ -81,6 +139,7 @@ export function ProductGrid({
             key={index}
             row={row}
             index={index}
+            rowLabel={row[identityField] || String(index + 1)}
             state={rowStates[index]}
             columns={columns}
             template={template}
