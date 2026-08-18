@@ -1,5 +1,6 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
+import { fitTextToSingleLine, LABEL_FONT_FAMILY } from "../label/fitText";
 import { wrapTextLines } from "../label/wrapText";
 import { mmToPt, mmToPx } from "../units/mmToPt";
 import type { CsvRow } from "../../types/csv";
@@ -15,7 +16,6 @@ export type DirectPrintPagePdf = {
 export type DirectPrintPages = { pages: DirectPrintPagePdf[] };
 
 export const LABEL_PRINT_DPI = 203;
-const LABEL_FONT = '\"Hiragino Sans\", \"Yu Gothic\", \"Noto Sans JP\", sans-serif';
 
 function resolveContent(row: CsvRow, elements: LabelElement[]) {
   const content = {
@@ -44,7 +44,7 @@ function resolveContent(row: CsvRow, elements: LabelElement[]) {
   return content;
 }
 
-type TextLayoutStyle = { fontSize: number; lineHeight: number; weight: number };
+type TextLayoutStyle = { fontSize: number; minFontSize?: number; lineHeight: number; weight: number };
 type LayoutSection = "product" | "price" | "barcode";
 type TextLayoutItem = {
   type: "text";
@@ -86,10 +86,27 @@ function createTextLayoutItem(
   dpi: number,
 ): TextLayoutItem | null {
   if (!text.trim()) return null;
-  const fontSize = Math.max(mmToPx(style.fontSize, dpi), 1);
-  const lineHeight = Math.max(mmToPx(style.lineHeight, dpi), fontSize);
-  context.font = `${style.weight} ${fontSize}px ${LABEL_FONT}`;
-  const lines = wrapTextLines(text, maxWidth, (value) => context.measureText(value).width);
+  const preferredFontSize = Math.max(mmToPx(style.fontSize, dpi), 1);
+  const preferredLineHeight = Math.max(mmToPx(style.lineHeight, dpi), preferredFontSize);
+  context.font = `${style.weight} ${preferredFontSize}px ${LABEL_FONT_FAMILY}`;
+
+  const fitted = style.minFontSize === undefined
+    ? null
+    : fitTextToSingleLine({
+      text,
+      maxWidth,
+      preferredFontSize,
+      preferredLineHeight,
+      minFontSize: mmToPx(style.minFontSize, dpi),
+      measureAtPreferredSize: (value) => context.measureText(value).width,
+    });
+  const fontSize = fitted?.fontSize ?? preferredFontSize;
+  const lineHeight = fitted?.lineHeight ?? preferredLineHeight;
+  const fittedText = fitted?.text ?? text;
+  context.font = `${style.weight} ${fontSize}px ${LABEL_FONT_FAMILY}`;
+  const lines = fitted && !fitted.shouldWrap
+    ? [fittedText]
+    : wrapTextLines(fittedText, maxWidth, (value) => context.measureText(value).width);
   if (lines.length === 0) return null;
   return {
     type: "text",
@@ -111,7 +128,7 @@ function getItemGap(current: LayoutItem, next: LayoutItem, dpi: number): number 
 }
 
 function drawTextLayoutItem(context: CanvasRenderingContext2D, item: TextLayoutItem, y: number): void {
-  context.font = `${item.weight} ${item.fontSize}px ${LABEL_FONT}`;
+  context.font = `${item.weight} ${item.fontSize}px ${LABEL_FONT_FAMILY}`;
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillStyle = "#000000";

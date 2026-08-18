@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { generateCode128Canvas } from "../lib/barcode/generateCode128";
 import { formatPrice } from "../lib/format";
+import { fitTextToSingleLine, LABEL_FONT_FAMILY, normalizeSingleLineText } from "../lib/label/fitText";
 import type { CsvRow } from "../types/csv";
 import { calculateHorizontalMargin, LABEL_LAYOUT_MM, type LabelSettings } from "../types/label";
 import type { FieldMapping } from "../types/mapping";
@@ -51,12 +52,32 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
   const safeHorizontalMargin = calculateHorizontalMargin(safeVerticalMargin);
   const previewWidth = Math.min(Math.max(safeWidth * PREVIEW_PIXELS_PER_MM, 120), maxWidthPx);
   const previewScale = safeWidth > 0 ? previewWidth / safeWidth : PREVIEW_PIXELS_PER_MM;
-  const verticalPaddingPercent = safeWidth > 0
-    ? Math.min((safeVerticalMargin / safeWidth) * 100, 40)
-    : 0;
-  const horizontalPaddingPercent = safeWidth > 0
-    ? Math.min((safeHorizontalMargin / safeWidth) * 100, 40)
-    : 0;
+  const verticalPaddingPx = safeVerticalMargin * previewScale;
+  const horizontalPaddingPx = safeHorizontalMargin * previewScale;
+  const productNameText = normalizeSingleLineText(productName);
+  const productNameLayout = useMemo(() => {
+    const preferredFontSize = LABEL_LAYOUT_MM.productName.fontSize * previewScale;
+    const preferredLineHeight = LABEL_LAYOUT_MM.productName.lineHeight * previewScale;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return {
+        text: productNameText,
+        fontSize: preferredFontSize,
+        lineHeight: preferredLineHeight,
+        shouldWrap: true,
+      };
+    }
+    context.font = `${LABEL_LAYOUT_MM.productName.weight} ${preferredFontSize}px ${LABEL_FONT_FAMILY}`;
+    return fitTextToSingleLine({
+      text: productNameText,
+      maxWidth: Math.max((safeWidth - safeHorizontalMargin * 2) * previewScale - 2, 1),
+      preferredFontSize,
+      preferredLineHeight,
+      minFontSize: LABEL_LAYOUT_MM.productName.minFontSize * previewScale,
+      measureAtPreferredSize: (value) => context.measureText(value).width,
+    });
+  }, [previewScale, productNameText, safeHorizontalMargin, safeWidth]);
 
   useEffect(() => {
     if (!onHeightChange) return undefined;
@@ -87,7 +108,7 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
       style={{
         gap: `${LABEL_LAYOUT_MM.sectionGap * previewScale}px`,
         maxWidth: "100%",
-        padding: `${verticalPaddingPercent}% ${horizontalPaddingPercent}%`,
+        padding: `${verticalPaddingPx}px ${horizontalPaddingPx}px`,
         width: `${previewWidth}px`,
       }}
     >
@@ -97,7 +118,20 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
           style={{ gap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px` }}
         >
           {brand ? <span className="preview-brand" style={textStyle(LABEL_LAYOUT_MM.brand.fontSize, LABEL_LAYOUT_MM.brand.lineHeight)}>{brand}</span> : null}
-          {productName ? <strong className="preview-name" style={textStyle(LABEL_LAYOUT_MM.productName.fontSize, LABEL_LAYOUT_MM.productName.lineHeight)}>{productName}</strong> : null}
+          {productNameText ? (
+            <strong
+              className="preview-name"
+              style={{
+                fontFamily: LABEL_FONT_FAMILY,
+                fontSize: `${productNameLayout.fontSize}px`,
+                lineHeight: `${productNameLayout.lineHeight}px`,
+                overflowWrap: productNameLayout.shouldWrap ? "anywhere" : "normal",
+                whiteSpace: productNameLayout.shouldWrap ? "normal" : "nowrap",
+              }}
+            >
+              {productNameLayout.text}
+            </strong>
+          ) : null}
           {variant ? <span className="preview-variant" style={textStyle(LABEL_LAYOUT_MM.variant.fontSize, LABEL_LAYOUT_MM.variant.lineHeight)}>{variant}</span> : null}
         </div>
       ) : null}
