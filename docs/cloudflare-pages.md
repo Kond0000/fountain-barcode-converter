@@ -32,7 +32,7 @@ GitHub: Kond0000/fountain-barcode-converter
    | Root directory | `/` |
 
 5. 環境変数は追加せず、`Save and Deploy`を実行します。
-6. デプロイ完了後に表示される`https://<project-name>.pages.dev`を社内の利用者へ共有します。
+6. デプロイ完了後、[https://fountain-barcode-converter.pages.dev/](https://fountain-barcode-converter.pages.dev/)を社内の利用者へ共有します。
 
 CloudflareのGit連携では、`main`以外のブランチにも固有のプレビューURLが作られます。Direct Uploadで作ったPagesプロジェクトは後からGit連携へ切り替えられないため、初回から`Connect to Git`を選択してください。
 

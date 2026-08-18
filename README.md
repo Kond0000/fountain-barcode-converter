@@ -5,7 +5,7 @@
 PDFはmC-Label3の203dpiに合わせた白黒画像として生成し、CODE128は拡大縮小せず、バー幅を整数ドット単位で描画します。
 
 - 公開リポジトリ: <https://github.com/Kond0000/fountain-barcode-converter>
-- 本番環境: Cloudflare Pages（GitHubの`main`ブランチから自動デプロイ）
+- 本番環境: [Cloudflare Pages](https://fountain-barcode-converter.pages.dev/)（GitHubの`main`ブランチから自動デプロイ）
 - CSV処理とPDF生成: 利用者のブラウザ内で完結
 
 ## 利用できる機能
