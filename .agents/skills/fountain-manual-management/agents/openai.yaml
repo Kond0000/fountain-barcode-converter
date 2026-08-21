@@ -1,0 +1,6 @@
+interface:
+  display_name: "FOUNTAINマニュアル管理"
+  short_description: "FOUNTAINのNotionマニュアルを方針に沿って管理"
+  default_prompt: "Use $fountain-manual-management to create or organize FOUNTAIN manuals in Notion."
+policy:
+  allow_implicit_invocation: true
