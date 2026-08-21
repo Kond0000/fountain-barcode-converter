@@ -19,6 +19,8 @@ type LabelVisualProps = {
   mapping: FieldMapping;
   settings: LabelSettings;
   maxWidthPx?: number;
+  pixelsPerMm?: number;
+  allowOverflow?: boolean;
   onHeightChange?: (heightMm: number) => void;
 };
 
@@ -26,10 +28,18 @@ type LabelVisualProps = {
 // bars and gaps of a typical printer-native CODE128 symbol.
 const PREVIEW_PIXELS_PER_MM = 6;
 
-export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeightChange }: LabelVisualProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function LabelVisual({
+  row,
+  mapping,
+  settings,
+  maxWidthPx = 330,
+  pixelsPerMm,
+  allowOverflow = false,
+  onHeightChange,
+}: LabelVisualProps) {
   const labelRef = useRef<HTMLDivElement>(null);
   const [barcodeError, setBarcodeError] = useState("");
+  const [barcodeImageSrc, setBarcodeImageSrc] = useState("");
   const [barcodeDisplaySize, setBarcodeDisplaySize] = useState<{ width: number; height: number } | null>(null);
   const barcodeValue = mapping.barcode ? row[mapping.barcode] ?? "" : "";
   const brand = mapping.brand ? row[mapping.brand] ?? "" : "";
@@ -42,8 +52,11 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
   const safeWidth = Number.isFinite(settings.widthMm) ? Math.max(settings.widthMm, 0) : 0;
   const safeVerticalMargin = Number.isFinite(settings.marginMm) ? Math.max(settings.marginMm, 0) : 0;
   const safeHorizontalMargin = calculateHorizontalMargin(safeVerticalMargin);
-  const previewWidth = Math.min(Math.max(safeWidth * PREVIEW_PIXELS_PER_MM, 120), maxWidthPx);
-  const previewScale = safeWidth > 0 ? previewWidth / safeWidth : PREVIEW_PIXELS_PER_MM;
+  const safePixelsPerMm = typeof pixelsPerMm === "number" && Number.isFinite(pixelsPerMm)
+    ? Math.max(pixelsPerMm, 1)
+    : PREVIEW_PIXELS_PER_MM;
+  const previewWidth = Math.min(Math.max(safeWidth * safePixelsPerMm, 120), maxWidthPx);
+  const previewScale = safeWidth > 0 ? previewWidth / safeWidth : safePixelsPerMm;
   const verticalPaddingPx = safeVerticalMargin * previewScale;
   const horizontalPaddingPx = safeHorizontalMargin * previewScale;
   const previewContentWidth = Math.max(
@@ -81,31 +94,29 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
 
   useEffect(() => {
     let cancelled = false;
-    const canvas = canvasRef.current;
-    if (!canvas || !barcodeValue) {
+    if (!barcodeValue) {
+      setBarcodeImageSrc("");
       setBarcodeDisplaySize(null);
       setBarcodeError(barcodeValue ? "" : "バーコード値がありません");
       return () => { cancelled = true; };
     }
 
-    // The print image is much denser than the panel, so reusing it here can
-    // collapse narrow white gaps during CSS downscaling. Render a preview-only
-    // bitmap at the displayed resolution instead; PDF and printer rendering
-    // continue to use their own whole-dot path.
+    // Use the same whole-dot sizing model as the PDF: the label's horizontal
+    // margin supplies part of the quiet zone, and every module occupies an
+    // integral number of displayed CSS pixels. Rendering the canvas to a PNG
+    // also avoids the browser's canvas compositor resampling the barcode.
     const pixelRatio = Math.max(window.devicePixelRatio || 1, 1);
+    const moduleScaleStep = Math.max(Math.round(pixelRatio), 1);
     void createCode128CanvasForPrinter(barcodeValue, {
       maxWidthPx: Math.max(Math.floor(previewBarcodeMaxWidth * pixelRatio), 1),
       targetHeightPx: Math.max(Math.round(previewBarcodeHeight * pixelRatio), 1),
       renderDpi: previewScale * 25.4 * pixelRatio,
+      moduleScaleStep,
+      externalQuietZonePx: Math.max(Math.round(horizontalPaddingPx * pixelRatio), 0),
     })
       .then((renderedCanvas) => {
         if (cancelled) return;
-        canvas.width = renderedCanvas.width;
-        canvas.height = renderedCanvas.height;
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("バーコードを表示できません");
-        context.imageSmoothingEnabled = false;
-        context.drawImage(renderedCanvas, 0, 0);
+        setBarcodeImageSrc(renderedCanvas.toDataURL("image/png"));
         setBarcodeDisplaySize({
           width: renderedCanvas.width / pixelRatio,
           height: renderedCanvas.height / pixelRatio,
@@ -114,6 +125,7 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
       })
       .catch((error: unknown) => {
         if (!cancelled) {
+          setBarcodeImageSrc("");
           setBarcodeDisplaySize(null);
           setBarcodeError(error instanceof Error ? error.message : "バーコードを表示できません");
         }
@@ -121,6 +133,7 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
     return () => { cancelled = true; };
   }, [
     barcodeValue,
+    horizontalPaddingPx,
     previewBarcodeHeight,
     previewBarcodeMaxWidth,
     previewScale,
@@ -154,7 +167,7 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
       className="physical-label"
       style={{
         gap: `${LABEL_LAYOUT_MM.sectionGap * previewScale}px`,
-        maxWidth: "100%",
+        maxWidth: allowOverflow ? "none" : "100%",
         padding: `${verticalPaddingPx}px ${horizontalPaddingPx}px`,
         width: `${previewWidth}px`,
       }}
@@ -202,13 +215,13 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
         className="preview-content-group preview-barcode-group"
         style={{ gap: `${LABEL_LAYOUT_MM.barcodeValueGap * previewScale}px` }}
       >
-        <canvas
-          ref={canvasRef}
+        <img
           className={`preview-barcode ${barcodeError ? "has-error" : ""}`}
+          src={barcodeImageSrc || undefined}
           style={barcodeDisplaySize
             ? { width: `${barcodeDisplaySize.width}px`, height: `${barcodeDisplaySize.height}px` }
             : { height: `${previewBarcodeHeight}px` }}
-          aria-label={`CODE128 ${barcodeValue}`}
+          alt={`CODE128 ${barcodeValue}`}
         />
         {barcodeError ? <span className="preview-error">{barcodeError}</span> : null}
         {barcodeValue ? <span className="preview-code" style={textStyle(LABEL_LAYOUT_MM.barcodeValue.fontSize, LABEL_LAYOUT_MM.barcodeValue.lineHeight)}>{barcodeValue}</span> : null}

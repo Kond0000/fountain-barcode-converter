@@ -163,14 +163,24 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .preview-details-row.is-stacked .preview-price { grid-column: 1; justify-self: end; }
 .preview-brand { font-weight: 600; letter-spacing: 0.04em; text-align: center; }
 .preview-barcode-group { align-items: center; text-align: center; }
-.preview-barcode { display: block; width: auto; max-width: 100%; height: auto; object-fit: none; image-rendering: pixelated; flex: 0 0 auto; }
+.preview-barcode { display: block; width: auto; max-width: 100%; height: auto; object-fit: contain; image-rendering: auto; flex: 0 0 auto; }
 .preview-barcode.has-error { display: none; }
 .preview-code { font-weight: 500; text-align: center; }
 .preview-error { color: var(--danger); font-size: 11px; }
 .preview-empty { color: var(--muted); font-size: 13px; }
 .preview-note { margin: 10px 0 0; color: #596673; font-size: 11px; }
+.preview-scan-button { width: 100%; min-height: 38px; margin-top: 10px; padding: 7px 12px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.preview-scan-button:hover:not(:disabled) { background: var(--accent-dark); }
 .preview-list-button { width: 100%; min-height: 38px; margin-top: 10px; padding: 7px 12px; border: 1px solid var(--accent); border-radius: 4px; background: #fff; color: var(--accent-dark); font-size: 12px; font-weight: 700; }
 .preview-list-button:hover:not(:disabled) { background: var(--accent-soft); }
+
+.barcode-scan-modal { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; overflow: hidden; border: 1px solid var(--border-dark); border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: 0 22px 70px rgba(23, 34, 44, 0.28); }
+.barcode-scan-modal::backdrop { background: rgba(24, 35, 45, 0.58); }
+.barcode-scan-modal-shell { max-height: calc(100vh - 34px); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.barcode-scan-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.barcode-scan-modal-header h2 { margin: 0; font-size: 20px; line-height: 1.3; }
+.barcode-scan-modal-header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.barcode-scan-modal-body { min-height: 0; overflow: auto; display: grid; place-items: center; padding: 24px; background: #f4f7f8; }
 
 .preview-modal { width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; overflow: hidden; border: 1px solid var(--border-dark); border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: 0 22px 70px rgba(23, 34, 44, 0.28); }
 .preview-modal::backdrop { background: rgba(24, 35, 45, 0.58); }
@@ -262,6 +272,10 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
   .preview-modal-footer { padding: 10px 14px; }
   .preview-modal-footer p { display: none; }
   .preview-modal-footer .secondary-button { width: 100%; }
+  .barcode-scan-modal { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
+  .barcode-scan-modal-shell { max-height: calc(100vh - 18px); }
+  .barcode-scan-modal-header { padding: 13px 14px; }
+  .barcode-scan-modal-body { justify-content: start; padding: 14px; }
 }
 
 @media (max-width: 420px) {
