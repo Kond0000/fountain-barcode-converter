@@ -22,7 +22,9 @@ type LabelVisualProps = {
   onHeightChange?: (heightMm: number) => void;
 };
 
-const PREVIEW_PIXELS_PER_MM = 4.5;
+// The preview must leave at least roughly two CSS pixels for the narrowest
+// bars and gaps of a typical printer-native CODE128 symbol.
+const PREVIEW_PIXELS_PER_MM = 6;
 
 export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeightChange }: LabelVisualProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -86,6 +88,10 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
       return () => { cancelled = true; };
     }
 
+    // The print image is much denser than the panel, so reusing it here can
+    // collapse narrow white gaps during CSS downscaling. Render a preview-only
+    // bitmap at the displayed resolution instead; PDF and printer rendering
+    // continue to use their own whole-dot path.
     const pixelRatio = Math.max(window.devicePixelRatio || 1, 1);
     void createCode128CanvasForPrinter(barcodeValue, {
       maxWidthPx: Math.max(Math.floor(previewBarcodeMaxWidth * pixelRatio), 1),
@@ -113,7 +119,12 @@ export function LabelVisual({ row, mapping, settings, maxWidthPx = 330, onHeight
         }
       });
     return () => { cancelled = true; };
-  }, [barcodeValue, previewBarcodeHeight, previewBarcodeMaxWidth, previewScale]);
+  }, [
+    barcodeValue,
+    previewBarcodeHeight,
+    previewBarcodeMaxWidth,
+    previewScale,
+  ]);
 
   useEffect(() => {
     if (!onHeightChange) return undefined;
