@@ -86,6 +86,23 @@ esac
 OPTIONS="$(lpoptions -p "$PRINTER" -l 2>/dev/null)" || fail "プリンターオプションを取得できません"
 [[ "$OPTIONS" == *"Custom.WIDTHxHEIGHT"* ]] || fail "Custom PageSize非対応です"
 
+printer_option_supports() {
+  local option_name="$1"
+  local option_value="$2"
+  local option_line choice
+  while IFS= read -r option_line; do
+    [[ "$option_line" == "$option_name/"*:* ]] || continue
+    for choice in ${(z)${option_line#*:}}; do
+      [[ "${choice#\*}" == "$option_value" ]] && return 0
+    done
+  done <<< "$OPTIONS"
+  return 1
+}
+
+JOB_OPTIONS=()
+printer_option_supports "Halftoning" "1Monochrome" && JOB_OPTIONS+=(-o "Halftoning=1Monochrome")
+printer_option_supports "PrintSpeed" "2Low" && JOB_OPTIONS+=(-o "PrintSpeed=2Low")
+
 INDEX=0
 while (( INDEX < PAGE_COUNT )); do
   FILE_NAME="$(plist_value "pages:${INDEX}:fileName" "$MANIFEST_PLIST")" || fail "$((INDEX + 1))ページ目のPDF名がありません"
@@ -100,7 +117,7 @@ while (( INDEX < PAGE_COUNT )); do
 
   FILE="$EXTRACT_DIR/$FILE_NAME"
   [[ -f "$FILE" && ! -L "$FILE" ]] || fail "$((INDEX + 1))ページ目のPDFがありません"
-  LP_OUTPUT="$(lp -d "$PRINTER" -o "media=Custom.${WIDTH_MM}x${HEIGHT_MM}mm" -- "$FILE" 2>&1)"
+  LP_OUTPUT="$(lp -d "$PRINTER" -o "media=Custom.${WIDTH_MM}x${HEIGHT_MM}mm" "${JOB_OPTIONS[@]}" -- "$FILE" 2>&1)"
   LP_STATUS=$?
   [[ $LP_STATUS -eq 0 ]] || fail "$((INDEX + 1))ページ目のlp印刷失敗: $LP_OUTPUT"
   (( INDEX += 1 ))
