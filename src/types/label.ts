@@ -11,7 +11,7 @@ export type LabelElement =
   | { type: "barcode"; sourceField: string; barcodeType: "code128" };
 
 export const DEFAULT_LABEL_SETTINGS: LabelSettings = {
-  widthMm: 50,
+  widthMm: 58,
   marginMm: 3,
 };
 

@@ -9,7 +9,7 @@ import {
 
 describe("label settings", () => {
   it("only stores values that the user can edit", () => {
-    expect(DEFAULT_LABEL_SETTINGS).toEqual({ widthMm: 50, marginMm: 3 });
+    expect(DEFAULT_LABEL_SETTINGS).toEqual({ widthMm: 58, marginMm: 3 });
   });
 
   it("calculates the horizontal margin as 80% of the vertical margin", () => {

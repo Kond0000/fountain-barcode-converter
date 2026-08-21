@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CODE128_QUIET_ZONE_MODULES,
   calculateBwipHeightMm,
+  calculateCode128ModuleScale,
   calculateIntegerModuleScale,
-  calculatePrinterAlignedWidth,
 } from "./generateCode128";
 
 describe("printer-native CODE128 sizing", () => {
@@ -16,10 +17,19 @@ describe("printer-native CODE128 sizing", () => {
     expect(calculateIntegerModuleScale(100, 650, 2)).toBe(6);
   });
 
-  it("uses the full printable width while keeping edges on printer dots", () => {
-    expect(calculatePrinterAlignedWidth(550, 2)).toBe(550);
-    expect(calculatePrinterAlignedWidth(551, 2)).toBe(550);
-    expect(calculatePrinterAlignedWidth(201.8)).toBe(201);
+  it("reserves the CODE128 quiet zones when selecting the module scale", () => {
+    const symbolModules = 101;
+    const printableWidth = 852;
+    const scale = calculateCode128ModuleScale(
+      symbolModules,
+      printableWidth,
+      38,
+      2,
+    );
+
+    const internalQuietZone = CODE128_QUIET_ZONE_MODULES * scale - 38;
+    expect(scale).toBe(6);
+    expect(symbolModules * scale + internalQuietZone * 2).toBeLessThanOrEqual(printableWidth);
   });
 
   it("never shrinks a module below one printer dot", () => {

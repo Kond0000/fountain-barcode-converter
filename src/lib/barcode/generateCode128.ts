@@ -12,7 +12,10 @@ export type PrinterBarcodeCanvasOptions = {
   targetHeightPx: number;
   renderDpi: number;
   moduleScaleStep?: number;
+  externalQuietZonePx?: number;
 };
+
+export const CODE128_QUIET_ZONE_MODULES = 10;
 
 export function calculateIntegerModuleScale(
   baseWidthPx: number,
@@ -38,14 +41,25 @@ export function calculateIntegerModuleScale(
   return scale;
 }
 
-export function calculatePrinterAlignedWidth(maxWidthPx: number, scaleStep = 1): number {
-  if (!Number.isFinite(maxWidthPx) || !Number.isFinite(scaleStep) || maxWidthPx <= 0 || scaleStep < 1) {
-    throw new Error("バーコードの描画サイズが不正です。");
+export function calculateCode128ModuleScale(
+  baseWidthPx: number,
+  maxWidthPx: number,
+  externalQuietZonePx = 0,
+  scaleStep = 1,
+): number {
+  if (!Number.isFinite(externalQuietZonePx) || externalQuietZonePx < 0) {
+    throw new Error("バーコードの余白が不正です。");
   }
   const safeScaleStep = Math.max(Math.round(scaleStep), 1);
-  const width = Math.floor(maxWidthPx / safeScaleStep) * safeScaleStep;
-  if (width < safeScaleStep) throw new Error("バーコードがラベル幅に収まりません。");
-  return width;
+  const maximumScale = calculateIntegerModuleScale(baseWidthPx, maxWidthPx, safeScaleStep);
+  for (let scale = maximumScale; scale >= safeScaleStep; scale -= safeScaleStep) {
+    const internalQuietZone = Math.max(
+      CODE128_QUIET_ZONE_MODULES * scale - externalQuietZonePx,
+      0,
+    );
+    if (baseWidthPx * scale + internalQuietZone * 2 <= maxWidthPx) return scale;
+  }
+  throw new Error("バーコードがラベル幅に収まりません。横幅または余白を調整してください。");
 }
 
 export function calculateBwipHeightMm(targetHeightPx: number, scaleY: number): number {
@@ -83,44 +97,24 @@ export function createCode128Canvas(value: string, options?: BarcodeCanvasOption
   return generateCode128Canvas(value, document.createElement("canvas"), options);
 }
 
-function expandBarcodeToPrinterWidth(
+function addCode128QuietZones(
   source: HTMLCanvasElement,
-  targetWidth: number,
-  scaleStep: number,
+  moduleScale: number,
+  externalQuietZonePx: number,
 ): HTMLCanvasElement {
-  if (source.width > targetWidth) {
-    throw new Error("バーコードがラベル幅に収まりません。横幅または余白を調整してください。");
-  }
-  if (source.width === targetWidth) return source;
-
+  const quietZoneWidth = Math.max(
+    CODE128_QUIET_ZONE_MODULES * moduleScale - externalQuietZonePx,
+    0,
+  );
   const canvas = document.createElement("canvas");
-  canvas.width = targetWidth;
+  canvas.width = source.width + quietZoneWidth * 2;
   canvas.height = source.height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("バーコードを描画できませんでした。");
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingEnabled = false;
-
-  const sourceColumns = Math.floor(source.width / scaleStep);
-  const targetColumns = Math.floor(targetWidth / scaleStep);
-  for (let column = 0; column < targetColumns; column += 1) {
-    const sourceColumn = Math.min(
-      Math.floor(column * sourceColumns / targetColumns),
-      sourceColumns - 1,
-    );
-    context.drawImage(
-      source,
-      sourceColumn * scaleStep,
-      0,
-      scaleStep,
-      source.height,
-      column * scaleStep,
-      0,
-      scaleStep,
-      source.height,
-    );
-  }
+  context.drawImage(source, quietZoneWidth, 0);
   return canvas;
 }
 
@@ -129,12 +123,22 @@ export async function createCode128CanvasForPrinter(
   options: PrinterBarcodeCanvasOptions,
 ): Promise<HTMLCanvasElement> {
   const scaleStep = Math.max(Math.round(options.moduleScaleStep ?? 1), 1);
-  const targetWidth = calculatePrinterAlignedWidth(options.maxWidthPx, scaleStep);
+  const externalQuietZonePx = Math.max(Math.floor(options.externalQuietZonePx ?? 0), 0);
   const scaleY = Math.max(Math.round(options.renderDpi / POINTS_PER_INCH), 1);
-  const source = await createCode128Canvas(value, {
-    scaleX: scaleStep,
+  const heightMm = calculateBwipHeightMm(options.targetHeightPx, scaleY);
+  const base = await createCode128Canvas(value, {
+    scaleX: 1,
     scaleY,
-    heightMm: calculateBwipHeightMm(options.targetHeightPx, scaleY),
+    heightMm,
   });
-  return expandBarcodeToPrinterWidth(source, targetWidth, scaleStep);
+  const moduleScale = calculateCode128ModuleScale(
+    base.width,
+    options.maxWidthPx,
+    externalQuietZonePx,
+    scaleStep,
+  );
+  const source = moduleScale === 1
+    ? base
+    : await createCode128Canvas(value, { scaleX: moduleScale, scaleY, heightMm });
+  return addCode128QuietZones(source, moduleScale, externalQuietZonePx);
 }

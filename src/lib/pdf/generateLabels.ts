@@ -5,7 +5,7 @@ import { formatVariantValue } from "../label/formatVariant";
 import { shouldStackDetailsRow } from "../label/layoutDetailsRow";
 import { layoutProductName } from "../label/layoutProductName";
 import { wrapTextLines } from "../label/wrapText";
-import { mmToPt } from "../units/mmToPt";
+import { MM_PER_INCH, mmToPt, POINTS_PER_INCH } from "../units/mmToPt";
 import type { CsvRow } from "../../types/csv";
 import {
   calculateHorizontalMargin,
@@ -26,16 +26,37 @@ export type DirectPrintPages = { pages: DirectPrintPagePdf[] };
 
 export const LABEL_PRINT_DOTS_PER_MM = 8;
 export const LABEL_PRINT_DPI = LABEL_PRINT_DOTS_PER_MM * 25.4;
+// The printer is nominally 8 dots/mm (203.2 dpi), while the Star CUPS PPD
+// rasterizes at 203 dpi. Match direct-print PDF/media dimensions to that
+// declared raster so each native label pixel reaches CUPS as exactly one dot.
+export const LABEL_CUPS_RASTER_DPI = 203;
 export const LABEL_RENDER_SCALE = 2;
 export const LABEL_RENDER_PIXELS_PER_MM = LABEL_PRINT_DOTS_PER_MM * LABEL_RENDER_SCALE;
 export const LABEL_RENDER_DPI = LABEL_RENDER_PIXELS_PER_MM * 25.4;
+export const LABEL_MONOCHROME_THRESHOLD = 128;
 
-export function mmToLabelRenderPixels(mm: number): number {
-  return Math.round(mm * LABEL_PRINT_DOTS_PER_MM) * LABEL_RENDER_SCALE;
+export function mmToLabelPrintPixels(mm: number): number {
+  return Math.round(mm * LABEL_PRINT_DOTS_PER_MM);
 }
 
-function labelRenderPixelsToMm(pixels: number): number {
+export function mmToLabelRenderPixels(mm: number): number {
+  return mmToLabelPrintPixels(mm) * LABEL_RENDER_SCALE;
+}
+
+export function labelPrintPixelsToMm(pixels: number): number {
+  return pixels / LABEL_PRINT_DOTS_PER_MM;
+}
+
+export function labelPrintPixelsToPdfPoints(pixels: number): number {
+  return pixels * POINTS_PER_INCH / LABEL_CUPS_RASTER_DPI;
+}
+
+export function labelRenderPixelsToMm(pixels: number): number {
   return pixels / LABEL_RENDER_PIXELS_PER_MM;
+}
+
+export function labelPrintPixelsToCupsMm(pixels: number): number {
+  return pixels * MM_PER_INCH / LABEL_CUPS_RASTER_DPI;
 }
 
 function snapToPrinterDot(pixels: number): number {
@@ -44,6 +65,73 @@ function snapToPrinterDot(pixels: number): number {
 
 function ceilToPrinterDot(pixels: number): number {
   return Math.max(Math.ceil(pixels / LABEL_RENDER_SCALE) * LABEL_RENDER_SCALE, LABEL_RENDER_SCALE);
+}
+
+export function snapCoordinateToPrinterDot(pixels: number): number {
+  return Math.round(pixels / LABEL_RENDER_SCALE) * LABEL_RENDER_SCALE;
+}
+
+export type MonochromeRaster = {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+};
+
+export function downsampleRgbaToMonochrome(
+  source: Uint8ClampedArray,
+  sourceWidth: number,
+  sourceHeight: number,
+  scale = LABEL_RENDER_SCALE,
+  threshold = LABEL_MONOCHROME_THRESHOLD,
+): MonochromeRaster {
+  if (
+    !Number.isInteger(sourceWidth)
+    || !Number.isInteger(sourceHeight)
+    || !Number.isInteger(scale)
+    || sourceWidth <= 0
+    || sourceHeight <= 0
+    || scale <= 0
+    || sourceWidth % scale !== 0
+    || sourceHeight % scale !== 0
+    || source.length !== sourceWidth * sourceHeight * 4
+    || !Number.isFinite(threshold)
+    || threshold < 0
+    || threshold > 255
+  ) {
+    throw new Error("ラベル画像をプリンタードットへ変換できませんでした。");
+  }
+
+  const width = sourceWidth / scale;
+  const height = sourceHeight / scale;
+  const data = new Uint8ClampedArray(width * height * 4);
+  const samplesPerPixel = scale * scale;
+
+  for (let targetY = 0; targetY < height; targetY += 1) {
+    for (let targetX = 0; targetX < width; targetX += 1) {
+      let luminanceTotal = 0;
+      for (let offsetY = 0; offsetY < scale; offsetY += 1) {
+        for (let offsetX = 0; offsetX < scale; offsetX += 1) {
+          const sourceX = targetX * scale + offsetX;
+          const sourceY = targetY * scale + offsetY;
+          const sourceIndex = (sourceY * sourceWidth + sourceX) * 4;
+          const alpha = source[sourceIndex + 3] / 255;
+          const red = source[sourceIndex] * alpha + 255 * (1 - alpha);
+          const green = source[sourceIndex + 1] * alpha + 255 * (1 - alpha);
+          const blue = source[sourceIndex + 2] * alpha + 255 * (1 - alpha);
+          luminanceTotal += (red * 299 + green * 587 + blue * 114) / 1000;
+        }
+      }
+
+      const value = luminanceTotal / samplesPerPixel < threshold ? 0 : 255;
+      const targetIndex = (targetY * width + targetX) * 4;
+      data[targetIndex] = value;
+      data[targetIndex + 1] = value;
+      data[targetIndex + 2] = value;
+      data[targetIndex + 3] = 255;
+    }
+  }
+
+  return { width, height, data };
 }
 
 function resolveContent(row: CsvRow, elements: LabelElement[]) {
@@ -257,7 +345,8 @@ function drawTextLayoutItem(
       ? contentRight
       : context.canvas.width / 2;
   item.lines.forEach((line, index) => {
-    context.fillText(line, x, y + item.lineHeight * (index + 0.5));
+    const baselineY = snapCoordinateToPrinterDot(y + item.lineHeight * (index + 0.5));
+    context.fillText(line, x, baselineY);
   });
 }
 
@@ -277,32 +366,33 @@ function drawDetailsLayoutItem(
   if (item.variant) {
     context.font = `${item.variantWeight} ${item.variantFontSize}px ${LABEL_FONT_FAMILY}`;
     context.textAlign = "left";
-    context.fillText(item.variant, contentLeft, variantY);
+    context.fillText(item.variant, contentLeft, snapCoordinateToPrinterDot(variantY));
   }
   if (item.price) {
     context.font = `${item.priceWeight} ${item.priceFontSize}px ${LABEL_FONT_FAMILY}`;
     context.textAlign = "right";
-    context.fillText(item.price, contentRight, priceY);
+    context.fillText(item.price, contentRight, snapCoordinateToPrinterDot(priceY));
   }
 }
 
-function convertCanvasToMonochrome(canvas: HTMLCanvasElement): void {
+function createPrinterDotCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
+  const sourceContext = source.getContext("2d", { willReadFrequently: true });
+  if (!sourceContext) throw new Error("ラベル描画を初期化できませんでした。");
+  const sourceImage = sourceContext.getImageData(0, 0, source.width, source.height);
+  const raster = downsampleRgbaToMonochrome(sourceImage.data, source.width, source.height);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = raster.width;
+  canvas.height = raster.height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("ラベル描画を初期化できませんでした。");
-  const image = context.getImageData(0, 0, canvas.width, canvas.height);
-  const { data } = image;
-  for (let index = 0; index < data.length; index += 4) {
-    const luminance = (data[index] * 299 + data[index + 1] * 587 + data[index + 2] * 114) / 1000;
-    const value = luminance < 192 ? 0 : 255;
-    data[index] = value;
-    data[index + 1] = value;
-    data[index + 2] = value;
-    data[index + 3] = 255;
-  }
+  const image = context.createImageData(raster.width, raster.height);
+  image.data.set(raster.data);
   context.putImageData(image, 0, 0);
+  return canvas;
 }
 
-export async function renderLabelCanvas(
+async function renderLabelSourceCanvas(
   row: CsvRow,
   elements: LabelElement[],
   settings: LabelSettings,
@@ -325,6 +415,7 @@ export async function renderLabelCanvas(
     targetHeightPx: barcodeMaxHeight,
     renderDpi: LABEL_RENDER_DPI,
     moduleScaleStep: LABEL_RENDER_SCALE,
+    externalQuietZonePx: horizontalMargin,
   });
   const barcodeWidth = barcodeCanvas.width;
   const barcodeHeight = barcodeCanvas.height;
@@ -365,14 +456,22 @@ export async function renderLabelCanvas(
       drawDetailsLayoutItem(context, item, y, horizontalMargin, canvas.width - horizontalMargin);
     } else {
       context.imageSmoothingEnabled = false;
-      context.drawImage(item.canvas, Math.floor((canvas.width - item.width) / 2), y);
+      const barcodeX = snapCoordinateToPrinterDot((canvas.width - item.width) / 2);
+      context.drawImage(item.canvas, barcodeX, snapCoordinateToPrinterDot(y));
     }
     y += item.height;
     const next = items[index + 1];
     if (next) y += getItemGap(item, next);
   });
-  convertCanvasToMonochrome(canvas);
   return canvas;
+}
+
+export async function renderLabelCanvas(
+  row: CsvRow,
+  elements: LabelElement[],
+  settings: LabelSettings,
+): Promise<HTMLCanvasElement> {
+  return createPrinterDotCanvas(await renderLabelSourceCanvas(row, elements, settings));
 }
 
 export function validateLabelSettings(settings: LabelSettings): void {
@@ -392,6 +491,7 @@ async function renderLabelEntries(
   entries: LabelPdfEntry[],
   elements: LabelElement[],
   settings: LabelSettings,
+  output: "highResolution" | "printerDots",
 ): Promise<RenderedLabelEntry[]> {
   const printable = entries.flatMap((entry) => {
     const copies = Math.max(0, Math.floor(entry.copies));
@@ -399,10 +499,13 @@ async function renderLabelEntries(
   });
   if (printable.length === 0) throw new Error("印刷枚数が1枚以上の商品を選択してください。");
 
-  return Promise.all(printable.map(async (entry) => ({
-    canvas: await renderLabelCanvas(entry.row, elements, settings),
-    copies: entry.copies,
-  })));
+  return Promise.all(printable.map(async (entry) => {
+    const sourceCanvas = await renderLabelSourceCanvas(entry.row, elements, settings);
+    return {
+      canvas: output === "printerDots" ? createPrinterDotCanvas(sourceCanvas) : sourceCanvas,
+      copies: entry.copies,
+    };
+  }));
 }
 
 export async function generateLabelsPdf(
@@ -415,12 +518,12 @@ export async function generateLabelsPdf(
 
   const [{ PDFDocument }, renderedEntries] = await Promise.all([
     import("pdf-lib"),
-    renderLabelEntries(entries, elements, settings),
+    renderLabelEntries(entries, elements, settings, "highResolution"),
   ]);
   const pdf = await PDFDocument.create();
   pdf.setTitle("Label Print");
   pdf.setCreator("LABEL PRINT");
-  const pageWidth = mmToPt(settings.widthMm);
+  const pageWidth = mmToPt(labelRenderPixelsToMm(renderedEntries[0].canvas.width));
 
   for (const { canvas, copies } of renderedEntries) {
     const image = await pdf.embedPng(canvas.toDataURL("image/png"));
@@ -445,12 +548,13 @@ export async function generateDirectPrintPages(
 
   const [{ PDFDocument }, renderedEntries] = await Promise.all([
     import("pdf-lib"),
-    renderLabelEntries(entries, elements, settings),
+    renderLabelEntries(entries, elements, settings, "printerDots"),
   ]);
-  const widthMm = roundPrintDimensionMm(settings.widthMm);
   const pageTemplates = await Promise.all(renderedEntries.map(async ({ canvas, copies }) => {
-    const heightMm = roundPrintDimensionMm(labelRenderPixelsToMm(canvas.height));
-    const [pageWidth, pageHeight] = createPdfPageSize(widthMm, heightMm);
+    const widthMm = roundPrintDimensionMm(labelPrintPixelsToCupsMm(canvas.width));
+    const heightMm = roundPrintDimensionMm(labelPrintPixelsToCupsMm(canvas.height));
+    const pageWidth = labelPrintPixelsToPdfPoints(canvas.width);
+    const pageHeight = labelPrintPixelsToPdfPoints(canvas.height);
     const pdf = await PDFDocument.create();
     pdf.setTitle("mC-Label3 Print");
     pdf.setCreator("LABEL PRINT");
