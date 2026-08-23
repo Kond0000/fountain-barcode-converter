@@ -1,9 +1,11 @@
 #!/bin/zsh
 
-# macOS Shortcutsの「シェルスクリプトを実行」へ貼り付ける例です。
-# Shortcut InputのJSONテキストを「引数として」渡し、$1で受け取ります。
+# LABEL PRINT.appがmC-Label3へ送るCUPS印刷処理です。
+# 互換のため、macOSショートカットから引数として呼び出すこともできます。
 
 JOB_JSON="${1-}"
+SAVED_PRINTER="${2-}"
+ARCHIVE_PATH="${3-}"
 
 fail() {
   print -r -- "ERROR:$1"
@@ -42,12 +44,22 @@ PAGE_FILE_PATTERN='^mclabel-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[8
 (( PAGE_COUNT <= 65534 )) || fail "印刷ページ数が上限を超えています"
 [[ "$ARCHIVE_NAME" == "mclabel-${JOB_ID}.zip" ]] || fail "ZIPファイル名が不正です"
 
-ARCHIVE_FILE="$HOME/Downloads/$ARCHIVE_NAME"
-for _ in {1..40}; do
-  [[ -f "$ARCHIVE_FILE" && ! -L "$ARCHIVE_FILE" ]] && break
+ARCHIVE_FILE="${ARCHIVE_PATH:-$HOME/Downloads/$ARCHIVE_NAME}"
+ARCHIVE_SEEN=0
+ARCHIVE_READY=0
+for _ in {1..480}; do
+  if [[ -f "$ARCHIVE_FILE" && ! -L "$ARCHIVE_FILE" ]]; then
+    ARCHIVE_SEEN=1
+    if /usr/bin/unzip -tqq "$ARCHIVE_FILE" >/dev/null 2>&1; then
+      ARCHIVE_READY=1
+      break
+    fi
+  fi
   sleep 0.25
 done
-[[ -f "$ARCHIVE_FILE" && ! -L "$ARCHIVE_FILE" ]] || fail "印刷ZIPが見つかりません"
+if (( ! ARCHIVE_READY )); then
+  (( ARCHIVE_SEEN )) && fail "印刷ZIPの保存完了を確認できません" || fail "印刷ZIPが見つかりません"
+fi
 
 ZIP_LIST="$(/usr/bin/unzip -Z1 "$ARCHIVE_FILE" 2>/dev/null)" || fail "印刷ZIPを読み込めません"
 ENTRY_COUNT=0
@@ -72,16 +84,30 @@ MANIFEST_PAGE_COUNT="$(plist_value pageCount "$MANIFEST_PLIST")" || fail "manife
 [[ "$MANIFEST_JOB_ID" == "$JOB_ID" ]] || fail "印刷ジョブIDが一致しません"
 [[ "$MANIFEST_PAGE_COUNT" == "$PAGE_COUNT" ]] || fail "印刷ページ数が一致しません"
 
-PRINTERS=()
+AVAILABLE_PRINTERS=()
+AUTO_PRINTERS=()
 while IFS= read -r DESTINATION; do
-  [[ "${DESTINATION:u}" == *MCL32* ]] && PRINTERS+=("$DESTINATION")
+  [[ -n "$DESTINATION" ]] || continue
+  AVAILABLE_PRINTERS+=("$DESTINATION")
+  [[ "${DESTINATION:u}" == *MCL32* ]] && AUTO_PRINTERS+=("$DESTINATION")
 done < <(lpstat -e 2>/dev/null)
 
-case ${#PRINTERS[@]} in
-  0) fail "mC-Label3が見つかりません" ;;
-  1) PRINTER="${PRINTERS[1]}" ;;
-  *) fail "mC-Label3が複数存在します" ;;
-esac
+if [[ -n "$SAVED_PRINTER" ]]; then
+  PRINTER=""
+  for DESTINATION in "${AVAILABLE_PRINTERS[@]}"; do
+    if [[ "$DESTINATION" == "$SAVED_PRINTER" ]]; then
+      PRINTER="$DESTINATION"
+      break
+    fi
+  done
+  [[ -n "$PRINTER" ]] || fail "保存したプリンターが見つかりません: $SAVED_PRINTER"
+else
+  case ${#AUTO_PRINTERS[@]} in
+    0) fail "mC-Label3が見つかりません。アプリで印刷先を選択してください" ;;
+    1) PRINTER="${AUTO_PRINTERS[1]}" ;;
+    *) fail "mC-Label3が複数存在します。アプリで印刷先を選択してください" ;;
+  esac
+fi
 
 OPTIONS="$(lpoptions -p "$PRINTER" -l 2>/dev/null)" || fail "プリンターオプションを取得できません"
 [[ "$OPTIONS" == *"Custom.WIDTHxHEIGHT"* ]] || fail "Custom PageSize非対応です"
