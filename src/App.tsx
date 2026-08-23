@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CsvDropzone } from "./components/CsvDropzone";
 import { FieldMappingPanel } from "./components/FieldMapping";
 import { LabelPreview } from "./components/LabelPreview";
 import { LabelPreviewModal } from "./components/LabelPreviewModal";
 import { LabelSettingsPanel } from "./components/LabelSettings";
 import { PdfActions } from "./components/PdfActions";
+import { PrinterSettingsPanel } from "./components/PrinterSettings";
 import { ProductGrid } from "./components/ProductGrid";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
@@ -18,13 +19,22 @@ import {
 } from "./lib/pdf/generateLabels";
 import {
   createMacPrintBundle,
-  createMacShortcutUrl,
+  createMacPrintAppUrl,
+  isMacPrintApp,
   isMacOs,
-  launchMacShortcut,
-  MAC_PRINT_SHORTCUT_NAME,
+  launchMacPrintApp,
+  MAC_PRINT_APP_NAME,
   startMacPrintBundleDownload,
+  startPreparedMacPrintBundleDownload,
   startPdfDownload,
 } from "./lib/macShortcutPrint";
+import {
+  explainCsvReadError,
+  explainDirectPrintError,
+  explainPdfGenerationError,
+  type UserFacingMessage,
+} from "./lib/userFacingError";
+import type { MacPrinterReadiness } from "./lib/macPrinterSettings";
 import type { CsvData, RowState } from "./types/csv";
 import {
   createDefaultLabelElements,
@@ -48,10 +58,15 @@ export default function App() {
   const [loadingCsv, setLoadingCsv] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [printingMac, setPrintingMac] = useState(false);
+  const [printerReadiness, setPrinterReadiness] = useState<MacPrinterReadiness | null>(null);
   const [pdfDownload, setPdfDownload] = useState<PdfDownload | null>(null);
   const [previewListOpen, setPreviewListOpen] = useState(false);
   const [macAvailable] = useState(isMacOs);
-  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [runningInMacApp] = useState(isMacPrintApp);
+  const printInFlightRef = useRef(false);
+  const [message, setMessage] = useState<(
+    UserFacingMessage & { tone: "error" | "warning" | "success" }
+  ) | null>(null);
 
   useEffect(() => () => {
     if (pdfDownload) URL.revokeObjectURL(pdfDownload.url);
@@ -73,10 +88,14 @@ export default function App() {
       setActiveRowIndex(0);
       setPreviewListOpen(false);
       if (parsed.warnings.length > 0) {
-        setMessage({ tone: "error", text: `CSVを読み込みましたが、${parsed.warnings.length}件の注意があります。` });
+        setMessage({
+          tone: "warning",
+          title: "CSVを読み込みましたが、確認が必要な行があります",
+          detail: `${parsed.warnings.length}件の読み取り上の注意があります。商品一覧の内容を確認してから印刷してください。`,
+        });
       }
     } catch (error) {
-      setMessage({ tone: "error", text: error instanceof Error ? error.message : "CSVを読み込めませんでした。" });
+      setMessage({ tone: "error", ...explainCsvReadError(error) });
     } finally {
       setLoadingCsv(false);
     }
@@ -101,7 +120,11 @@ export default function App() {
 
   const handleGenerate = async () => {
     if (!mapping.barcode) {
-      setMessage({ tone: "error", text: "バーコードに使用するCSV列を選択してください。" });
+      setMessage({
+        tone: "error",
+        title: "バーコード列が設定されていません",
+        detail: "「ラベルデータ設定」のバーコード欄で、商品コードが入っているCSV列を選択してください。",
+      });
       return;
     }
     setGenerating(true);
@@ -111,25 +134,54 @@ export default function App() {
       const download = createPdfDownload(bytes, createPdfFileName());
       setPdfDownload(download);
       startPdfDownload(bytes, download.fileName);
-      setMessage({ tone: "success", text: `${totalPages}ページのラベルPDFの保存を開始しました。保存されない場合は「PDFを保存」を押してください。` });
+      setMessage({
+        tone: "success",
+        title: "PDFの保存を開始しました",
+        detail: `${totalPages}ページのラベルPDFを作成しました。保存されない場合は「PDFを保存」を押してください。`,
+      });
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "PDFを作成できませんでした。";
-      setMessage({ tone: "error", text: `PDF生成に失敗しました。${detail}` });
+      setMessage({ tone: "error", ...explainPdfGenerationError(error) });
     } finally {
       setGenerating(false);
     }
   };
 
   const handleMacPrint = async () => {
+    if (printInFlightRef.current) return;
     if (!macAvailable) {
-      setMessage({ tone: "error", text: "mC-Label3への直接印刷はMacで利用できます。PDF保存をご利用ください。" });
+      setMessage({
+        tone: "error",
+        title: "この端末から直接印刷できません",
+        detail: "mC-Label3への直接印刷はMacのLABEL PRINTアプリで利用できます。この端末ではPDF保存をご利用ください。",
+      });
       return;
     }
-    if (!mapping.barcode || totalPages === 0) {
-      setMessage({ tone: "error", text: "バーコード列と印刷対象を確認してください。" });
+    if (!mapping.barcode) {
+      setMessage({
+        tone: "error",
+        title: "バーコード列が設定されていません",
+        detail: "「ラベルデータ設定」のバーコード欄で、商品コードが入っているCSV列を選択してください。",
+      });
+      return;
+    }
+    if (totalPages === 0) {
+      setMessage({
+        tone: "error",
+        title: "印刷する商品が選択されていません",
+        detail: "商品一覧のチェックを入れ、枚数を1以上にしてから印刷してください。",
+      });
+      return;
+    }
+    if (runningInMacApp && !printerReadiness?.canPrint) {
+      setMessage({
+        tone: "error",
+        title: "プリンターの準備が完了していません",
+        detail: `${printerReadiness?.summary ?? "プリンターを確認中です"}。画面上部のプリンター診断を確認してから、もう一度お試しください。`,
+      });
       return;
     }
 
+    printInFlightRef.current = true;
     setPrintingMac(true);
     setMessage(null);
     try {
@@ -141,32 +193,53 @@ export default function App() {
       const jobId = crypto.randomUUID();
       const result = await generateDirectPrintPages(selectedEntries, createDefaultLabelElements(mapping), settings);
       const bundle = createMacPrintBundle({ jobId, pages: result.pages });
-      startMacPrintBundleDownload(bundle.bytes, bundle.job.archiveName);
-      launchMacShortcut(createMacShortcutUrl(MAC_PRINT_SHORTCUT_NAME, bundle.job));
-      setMessage({
-        tone: "success",
-        text: `Macショートカットを起動しました。${bundle.job.pageCount}ページを、それぞれの高さに合わせて1枚ずつ印刷します。実際の印刷結果はMac側の通知で確認してください。`,
-      });
+      if (runningInMacApp) {
+        const printResult = await startPreparedMacPrintBundleDownload(bundle);
+        setMessage({
+          tone: "success",
+          title: "印刷ジョブを送信しました",
+          detail: printResult.message || `${bundle.job.pageCount}ページをmC-Label3へ送信しました。`,
+        });
+      } else {
+        startMacPrintBundleDownload(bundle.bytes, bundle.job.archiveName);
+        launchMacPrintApp(createMacPrintAppUrl(bundle.job));
+        setMessage({
+          tone: "success",
+          title: "Mac印刷アプリを起動しました",
+          detail: `ZIPの保存完了後、${bundle.job.pageCount}ページをそれぞれの高さに合わせて印刷します。結果は${MAC_PRINT_APP_NAME}で確認してください。`,
+        });
+      }
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "不明なエラーです。";
-      setMessage({
-        tone: "error",
-        text: `直接印刷を開始できませんでした。${detail} Macショートカットを起動できない場合はPDF保存をご利用ください。`,
-      });
+      setMessage({ tone: "error", ...explainDirectPrintError(error, runningInMacApp) });
     } finally {
+      printInFlightRef.current = false;
       setPrintingMac(false);
     }
   };
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <h1>LABEL PRINT</h1>
-        <p>CSVからラベルPDFを作成</p>
+    <div className={`app-shell ${csvData ? "has-data" : ""}`}>
+      <header className={`app-header ${runningInMacApp ? "has-printer-settings" : ""}`}>
+        <div className="app-header-inner">
+          <div className="app-brand">
+            <h1>LABEL PRINT</h1>
+            <p>CSVからラベルPDFを作成・mC-Label3へ印刷</p>
+          </div>
+          {runningInMacApp ? <PrinterSettingsPanel onReadinessChange={setPrinterReadiness} /> : null}
+        </div>
       </header>
-      <main className="app-grid">
+      <main className={`app-grid ${csvData ? "has-data" : "is-empty"}`}>
         <CsvDropzone csvData={csvData} loading={loadingCsv} onFile={handleFile} />
-        {message ? <div className={`status-message is-${message.tone}`} role="status">{message.text}</div> : null}
+        {message ? (
+          <div
+            className={`status-message is-${message.tone}`}
+            role={message.tone === "error" ? "alert" : "status"}
+            aria-live={message.tone === "error" ? "assertive" : "polite"}
+          >
+            <strong>{message.title}</strong>
+            <span>{message.detail}</span>
+          </div>
+        ) : null}
         {csvData ? (
           <>
             <FieldMappingPanel headers={csvData.headers} mapping={mapping} onChange={updateMapping} />
@@ -190,24 +263,27 @@ export default function App() {
                 );
               }}
             />
-            <aside className="right-rail">
-              <LabelSettingsPanel settings={settings} onChange={setSettings} />
-              <LabelPreview
-                row={csvData.rows[activeRowIndex]}
-                mapping={mapping}
-                settings={settings}
-                selectedCount={selectedEntries.length}
-                onOpenList={() => setPreviewListOpen(true)}
-              />
-            </aside>
           </>
         ) : (
           <section className="getting-started">
             <h2>CSVの列構成は自由です</h2>
-            <p>ヘッダーを自動解析し、バーコード・商品名・価格などへ割り当てます。データは外部へ送信されません。</p>
+            <p>ヘッダーを自動解析し、バーコード・商品名・価格などへ割り当てます。</p>
+            <p className="getting-started-note">データは外部へ送信されません。</p>
           </section>
         )}
       </main>
+      {csvData ? (
+        <aside className="right-rail" aria-label="ラベル設定とプレビュー">
+          <LabelSettingsPanel settings={settings} onChange={setSettings} />
+          <LabelPreview
+            row={csvData.rows[activeRowIndex]}
+            mapping={mapping}
+            settings={settings}
+            selectedCount={selectedEntries.length}
+            onOpenList={() => setPreviewListOpen(true)}
+          />
+        </aside>
+      ) : null}
       {csvData ? (
         <>
           <LabelPreviewModal
@@ -225,8 +301,11 @@ export default function App() {
             download={pdfDownload}
             loading={generating}
             macAvailable={macAvailable}
+            runningInMacApp={runningInMacApp}
             macLoading={printingMac}
-            shortcutName={MAC_PRINT_SHORTCUT_NAME}
+            macPrintReady={!runningInMacApp || printerReadiness?.canPrint === true}
+            macPrintBlockedReason={printerReadiness?.summary}
+            appName={MAC_PRINT_APP_NAME}
             onGenerate={handleGenerate}
             onMacPrint={handleMacPrint}
           />
