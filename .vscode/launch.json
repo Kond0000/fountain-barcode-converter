@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:fountain-barcode-converter}/macos/LabelPrintMac",
+            "name": "Debug LabelPrintMac (macos/LabelPrintMac)",
+            "target": "LabelPrintMac",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug LabelPrintMac (macos/LabelPrintMac)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:fountain-barcode-converter}/macos/LabelPrintMac",
+            "name": "Release LabelPrintMac (macos/LabelPrintMac)",
+            "target": "LabelPrintMac",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release LabelPrintMac (macos/LabelPrintMac)"
+        }
+    ]
+}
