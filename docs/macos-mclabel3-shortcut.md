@@ -1,8 +1,8 @@
-# mC-Label3 Print - macOS初回セットアップ
+# 旧方式: mC-Label3 Printショートカット
 
-LABEL PRINTの「mC-Label3で印刷」は、ページ別の1ページPDFと実寸情報をZIPへまとめてDownloadsへ保存し、macOSのショートカットを起動します。ショートカットはZIPを検証・展開し、各ページを別々のCUPSジョブとしてmC-Label3へ送ります。WebアプリがCUPSやプリンターへ直接接続することはありません。
+この文書は、過去に設定済みのmacOSショートカットを保守する場合だけに使用します。新規設定ではショートカットを使わず、[LABEL PRINT.appの設定手順](macos-print-app.md)に従ってください。
 
-この設定は、直接印刷を利用するMacごとに1回必要です。Webアプリと、ショートカットへ貼り付けたスクリプトは自動では同期されません。以前に設定したMacも、この文書の手順で[最新版スクリプト](../scripts/mclabel3-print-example.sh)を貼り直し、「通知を表示」アクションを追加してください。
+旧方式では、LABEL PRINTの「mC-Label3で印刷」がページ別PDFと実寸情報をZIPへまとめてDownloadsへ保存し、macOSのショートカットを起動します。ショートカットはZIPを検証・展開し、各ページを別々のCUPSジョブとしてmC-Label3へ送ります。
 
 通常の操作方法はNotionの[LABEL PRINT 利用開始マニュアル](https://app.notion.com/p/3c271be76cc581dc8ce6f76c2261e247)を参照してください。
 

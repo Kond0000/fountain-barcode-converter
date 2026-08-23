@@ -60,9 +60,9 @@ Cloudflare PagesのURLをブラウザで開くだけです。ソフトウェア�
 
 ### mC-Label3へ直接印刷するMac
 
-利用するMacごとに、mC-Label3ドライバーと`mC-Label3 Print`ショートカットを設定します。Cloudflareへ一度デプロイしても、Mac側のショートカットが別のPCへ自動作成されることはありません。
+利用するMacごとに、mC-Label3ドライバーと一体型の`LABEL PRINT.app`を設定します。直接印刷はアプリ内で行うため、Cloudflare版をブラウザで開く必要はありません。Cloudflareへ一度デプロイしても、Mac側の印刷アプリが別のPCへ自動作成されることはありません。
 
-詳細は[macOSショートカット設定](macos-mclabel3-shortcut.md)を参照してください。
+詳細は[macOS印刷アプリ設定](macos-print-app.md)を参照してください。
 
 ## 手動デプロイ
 

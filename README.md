@@ -1,6 +1,6 @@
 # LABEL PRINT
 
-任意のCSVヘッダーを動的に解析し、CSV列をラベル項目へ割り当てて、CODE128ラベルPDFをブラウザ内で生成するReact / TypeScript / Viteアプリです。
+任意のCSVヘッダーを動的に解析し、CSV列をラベル項目へ割り当ててCODE128ラベルを作成するReact / TypeScript / Viteアプリです。macOS版は同じ画面を`LABEL PRINT.app`へ内蔵し、PDF保存とmC-Label3への直接印刷を1つのアプリで行います。Cloudflare版はブラウザでPDFを作成できます。
 
 保存用PDFは2倍解像度（16px/mm、約406.4dpi）のアンチエイリアス描画を指定実寸で保持し、画面表示や拡大時の文字を滑らかにします。mC-Label3への直接印刷では、その画像を実機ドットごとに面積平均して閾値128で一度だけ二値化します。直接印刷PDFと用紙寸法はStar CUPSの203dpiラスタへ合わせ、画像の1pxがCUPSの1ドットになるようにします。CODE128は横方向へ引き伸ばさず、各モジュールを均一な整数ドット幅で描画して必要な読取余白を確保します。符号化後のモジュール数に応じてバーコード全体の幅は変わり、ラベル中央へ配置されます。代表的な短い・長い商品コードは、生成PNGを独立したZXingデコーダーで元の値へ戻せることを自動テストします。
 
@@ -13,7 +13,7 @@
 - 公開リポジトリ: <https://github.com/Kond0000/fountain-barcode-converter>
 - 本番環境: [Cloudflare Pages](https://fountain-barcode-converter.pages.dev/)（GitHubの`main`ブランチから自動デプロイ）
 - 初めて使う方: [LABEL PRINT マニュアル目次](https://app.notion.com/p/3c271be76cc58186b1c5cdb5ce7505b6)
-- CSV処理とPDF生成: 利用者のブラウザ内で完結
+- CSV処理とPDF生成: 利用者のブラウザまたはMacアプリ内で完結
 
 ## 利用できる機能
 
@@ -23,30 +23,63 @@
 | PDF保存 | ○ | ○ | ○ |
 | mC-Label3へ直接印刷 | - | ○ | - |
 
-Cloudflare上のWebアプリは全員が同じURLから利用できます。通常のPDF保存には追加設定はありません。
+Cloudflare上のWebアプリは全員が同じURLから利用できます。Macで直接印刷する場合は一体型の`LABEL PRINT.app`を使用し、ブラウザを開く必要はありません。
 
 ラベル横幅の初期値は、mC-Label3で一般的に使用される58mmです。実際にセットしたロール紙の幅が異なる場合は、画面の「横幅」を用紙に合わせて変更してください。
 
-mC-Label3への直接印刷だけは、ブラウザからMacのプリンターへ直接アクセスできないため、利用するMacごとにプリンタードライバーとmacOSショートカットを一度設定します。
+mC-Label3への直接印刷では、利用するMacごとにプリンタードライバーと`LABEL PRINT.app`を一度設定します。アプリ上部の「印刷先プリンター」でmacOSに登録済みのCUPSキューを選択すると、そのMacに保存され、次回以降も同じプリンターへ送信します。アプリはブラウザやmacOSショートカットを介さず、選択したmC-Label3へCUPSで直接送信します。
+
+## アプリの構成（Webフロントエンド＋ネイティブラッパー）
+
+`LABEL PRINT.app`は、Reactで作ったWeb画面をMacアプリのウィンドウ内で動かし、Webブラウザだけでは扱えないプリンター設定とCUPS印刷をSwiftで補う**ハイブリッドアプリ**です。インターネット上のWeb版をアプリから開いているのではなく、ビルド時点のWeb版を`.app`の中へコピーしています。
+
+```text
+React / TypeScriptのソース（src/）
+                │ npm run build
+                ▼
+         Web版の完成物（dist/）
+          ├─ Cloudflare Pagesで配信
+          └─ LABEL PRINT.app内へコピー
+                       │
+                       ▼
+            Swift製ネイティブラッパー
+        WKWebView・ファイル保存・プリンター設定
+                       │
+                       ▼
+             印刷スクリプト → CUPS → mC-Label3
+```
+
+役割は次のように分かれています。
+
+| モジュール | 主な役割 | 主な場所 |
+| --- | --- | --- |
+| Reactフロントエンド | CSV解析、項目設定、商品選択、プレビュー、バーコード・PDF・印刷ZIPの生成 | `src/` |
+| Swiftネイティブラッパー | Macのアプリウィンドウ、React画面の表示、Downloadsへの保存、プリンター一覧・診断、印刷処理の起動 | `macos/LabelPrintMac/` |
+| 印刷スクリプト | ZIPとページ寸法を検証し、選択したプリンターへ各PDFをCUPSの`lp`コマンドで送信 | `scripts/mclabel3-print-example.sh` |
+| Macアプリのビルド処理 | Web版、Swift実行ファイル、印刷スクリプト、アイコンを1つの`.app`へまとめ、配布用ZIPを作成 | `scripts/build-label-print-mac-app.sh` |
+
+Macアプリを起動すると、Swift側が`127.0.0.1`の空いているポートで`.app`内のWebファイルだけを一時配信し、Mac標準の`WKWebView`がその画面を表示します。このアドレスは同じMac内だけで使用されるもので、外部サーバーへ接続するためのものではありません。
+
+React画面とSwift側は、`WKWebView`のメッセージ連携で通信します。React側で「mC-Label3で印刷」を押すと、次の順序で処理します。
+
+1. React側が選択中の商品から、ページ別PDFと用紙寸法を含む印刷ZIPを生成します。
+2. Swift側が保存済みプリンターとドライバーの対応状況を確認します。
+3. ZIPをDownloadsへ保存し、保存完了後に同梱の印刷スクリプトを起動します。
+4. 印刷スクリプトがZIPを検証し、各ページを指定寸法のCUPSジョブとしてmC-Label3へ送信します。
+
+このプロジェクトに、常時起動するAPIサーバーやクラウド側のバックエンドはありません。Cloudflare Pages版も静的なWebファイルだけで動作します。React側を変更して`npm run build`すると`dist/`は更新されますが、すでに配布した`.app`の中身は自動更新されません。Mac版へ反映するには`zsh scripts/build-label-print-mac-app.sh`で再ビルドし、配布用ZIPを再配布する必要があります。将来、別のバックエンドを追加しても自動では`.app`にコピーされないため、配置方法または接続先を別途設計します。
 
 ## 別のMacでmC-Label3直接印刷を設定する
 
 Macごとに次の設定が必要です。
 
 1. mC-Label3のmacOSドライバーをインストールし、プリンターを追加します。
-2. macOSの「ショートカット」アプリで`mC-Label3 Print`を作成します。
-3. ショートカットの詳細で`共有シートに表示`をオンにします。
-4. 「シェルスクリプトを実行」を追加し、次のように設定します。
-   - シェル: `/bin/zsh`
-   - 入力: `ショートカットの入力`
-   - 入力の渡し方: `引数として`
-   - 管理者として実行: オフ
-5. [scripts/mclabel3-print-example.sh](scripts/mclabel3-print-example.sh)をスクリプト欄へ貼り付けます。
-6. 2個目のアクションとして「通知を表示」を追加し、通知本文を直前の「シェルスクリプトの結果」にします。
-7. 「ショートカット」>「設定」>「詳細」で`スクリプトの実行を許可`をオンにします。
-8. Webアプリの「mC-Label3で印刷」を押し、ブラウザからショートカットを開く確認を許可します。
+2. 配布された`LABEL-PRINT-mac.zip`を展開し、`LABEL PRINT.app`を「アプリケーション」へ移動します。配布ビルドはApple Silicon MacとIntel Macの両方に対応します。
+3. `LABEL PRINT.app`を開きます。未署名アプリの警告が出た場合は、内容を確認して「システム設定」>「プライバシーとセキュリティ」から「このまま開く」を選択します。
+4. アプリ上部の「印刷先プリンター」で使用するmC-Label3を選択します。選択内容はそのMacに保存されます。
+5. アプリ内でCSVを読み込み、ラベルを確認して「mC-Label3で印刷」を押します。
 
-入力欄を空にするとショートカットだけが起動し、印刷ジョブは作成されません。既存ショートカットの貼付スクリプトは自動更新されないため、更新時は最新版を貼り直してください。詳しい確認方法とトラブルシューティングは[Macセットアップ手順](docs/macos-mclabel3-shortcut.md)を参照してください。
+`LABEL PRINT.app`は、画面・PDF生成・印刷処理をすべて内蔵しています。アプリ内で一時的な印刷ZIPをDownloadsへ保存・検証し、mC-Label3へ送ります。CSVの内容とPDFを外部サーバーへ送ることはありません。詳しい確認方法とトラブルシューティングは[Mac印刷アプリ設定](docs/macos-print-app.md)を参照してください。
 
 ## ローカル開発
 
@@ -62,6 +95,7 @@ npm run dev
 ```bash
 npm test
 npm run build
+zsh scripts/build-label-print-mac-app.sh
 ```
 
 ## Git運用
@@ -107,7 +141,7 @@ npm run deploy:cloudflare
 
 ## データとプライバシー
 
-- CSV内容はCloudflareや外部APIへ送信せず、ブラウザ内で処理します。
-- PDFもブラウザ内で生成します。
-- 直接印刷時はページ別PDFをZIPにまとめて各Macの`Downloads`へ保存し、ローカルのショートカットがCUPSへ送信します。
+- CSV内容はCloudflareや外部APIへ送信せず、ブラウザまたはMacアプリ内で処理します。
+- PDFもブラウザまたはMacアプリ内で生成します。
+- 直接印刷時はアプリ内でページ別PDFをZIPにまとめて`Downloads`へ保存し、検証後にCUPSへ送信します。
 - Cloudflare側に商品データ、PDF、印刷履歴を保存するサーバー機能はありません。
