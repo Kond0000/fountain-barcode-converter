@@ -5,6 +5,12 @@ import { LABEL_FONT_FAMILY } from "../lib/label/fitText";
 import { formatVariantValue } from "../lib/label/formatVariant";
 import { shouldStackDetailsRow } from "../lib/label/layoutDetailsRow";
 import { layoutProductName } from "../lib/label/layoutProductName";
+import {
+  LABEL_RENDER_DPI,
+  LABEL_RENDER_PIXELS_PER_MM,
+  LABEL_RENDER_SCALE,
+  mmToLabelRenderPixels,
+} from "../lib/pdf/generateLabels";
 import type { CsvRow } from "../types/csv";
 import {
   calculateHorizontalMargin,
@@ -13,6 +19,7 @@ import {
   type LabelSettings,
 } from "../types/label";
 import type { FieldMapping } from "../types/mapping";
+import { explainBarcodePreviewError } from "../lib/userFacingError";
 
 type LabelVisualProps = {
   row: CsvRow;
@@ -63,8 +70,14 @@ export function LabelVisual({
     (safeWidth - safeHorizontalMargin * 2) * previewScale - 2,
     1,
   );
-  const previewBarcodeMaxWidth = previewContentWidth;
   const previewBarcodeHeight = LABEL_LAYOUT_MM.barcodeHeight * previewScale;
+  const barcodeRenderHorizontalMargin = mmToLabelRenderPixels(safeHorizontalMargin);
+  const barcodeRenderMaxWidth = Math.max(
+    mmToLabelRenderPixels(safeWidth) - barcodeRenderHorizontalMargin * 2,
+    1,
+  );
+  const barcodeRenderHeight = mmToLabelRenderPixels(LABEL_LAYOUT_MM.barcodeHeight);
+  const barcodeCssScale = previewScale / LABEL_RENDER_PIXELS_PER_MM;
   const productNameLayout = useMemo(() => {
     const preferredFontSize = LABEL_LAYOUT_MM.productName.fontSize * previewScale;
     const preferredLineHeight = LABEL_LAYOUT_MM.productName.lineHeight * previewScale;
@@ -97,29 +110,26 @@ export function LabelVisual({
     if (!barcodeValue) {
       setBarcodeImageSrc("");
       setBarcodeDisplaySize(null);
-      setBarcodeError(barcodeValue ? "" : "バーコード値がありません");
+      setBarcodeError("バーコードがありません。バーコード列と商品の値を確認してください。");
       return () => { cancelled = true; };
     }
 
-    // Use the same whole-dot sizing model as the PDF: the label's horizontal
-    // margin supplies part of the quiet zone, and every module occupies an
-    // integral number of displayed CSS pixels. Rendering the canvas to a PNG
-    // also avoids the browser's canvas compositor resampling the barcode.
-    const pixelRatio = Math.max(window.devicePixelRatio || 1, 1);
-    const moduleScaleStep = Math.max(Math.round(pixelRatio), 1);
+    // Generate the same print-resolution barcode used by the PDF, then change
+    // only its CSS display size for the preview. This keeps narrow preview cards
+    // from becoming an artificial barcode-width constraint.
     void createCode128CanvasForPrinter(barcodeValue, {
-      maxWidthPx: Math.max(Math.floor(previewBarcodeMaxWidth * pixelRatio), 1),
-      targetHeightPx: Math.max(Math.round(previewBarcodeHeight * pixelRatio), 1),
-      renderDpi: previewScale * 25.4 * pixelRatio,
-      moduleScaleStep,
-      externalQuietZonePx: Math.max(Math.round(horizontalPaddingPx * pixelRatio), 0),
+      maxWidthPx: barcodeRenderMaxWidth,
+      targetHeightPx: barcodeRenderHeight,
+      renderDpi: LABEL_RENDER_DPI,
+      moduleScaleStep: LABEL_RENDER_SCALE,
+      externalQuietZonePx: barcodeRenderHorizontalMargin,
     })
       .then((renderedCanvas) => {
         if (cancelled) return;
         setBarcodeImageSrc(renderedCanvas.toDataURL("image/png"));
         setBarcodeDisplaySize({
-          width: renderedCanvas.width / pixelRatio,
-          height: renderedCanvas.height / pixelRatio,
+          width: renderedCanvas.width * barcodeCssScale,
+          height: renderedCanvas.height * barcodeCssScale,
         });
         setBarcodeError("");
       })
@@ -127,16 +137,16 @@ export function LabelVisual({
         if (!cancelled) {
           setBarcodeImageSrc("");
           setBarcodeDisplaySize(null);
-          setBarcodeError(error instanceof Error ? error.message : "バーコードを表示できません");
+          setBarcodeError(explainBarcodePreviewError(error));
         }
       });
     return () => { cancelled = true; };
   }, [
+    barcodeCssScale,
+    barcodeRenderHeight,
+    barcodeRenderHorizontalMargin,
+    barcodeRenderMaxWidth,
     barcodeValue,
-    horizontalPaddingPx,
-    previewBarcodeHeight,
-    previewBarcodeMaxWidth,
-    previewScale,
   ]);
 
   useEffect(() => {

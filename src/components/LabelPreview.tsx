@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import type { CsvRow } from "../types/csv";
 import { calculateHorizontalMargin, type LabelSettings } from "../types/label";
 import type { FieldMapping } from "../types/mapping";
@@ -18,9 +18,22 @@ function formatMillimeters(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+export function calculatePreviewFitScale(
+  availableWidth: number,
+  availableHeight: number,
+  labelWidth: number,
+  labelHeight: number,
+): number {
+  if (availableWidth <= 0 || availableHeight <= 0 || labelWidth <= 0 || labelHeight <= 0) return 1;
+  return Math.min(1, availableWidth / labelWidth, availableHeight / labelHeight);
+}
+
 export function LabelPreview({ row, mapping, settings, selectedCount, onOpenList }: LabelPreviewProps) {
   const [measuredHeightMm, setMeasuredHeightMm] = useState(0);
+  const [previewFitScale, setPreviewFitScale] = useState(1);
   const [scanPreviewOpen, setScanPreviewOpen] = useState(false);
+  const previewStageRef = useRef<HTMLDivElement>(null);
+  const previewFitFrameRef = useRef<HTMLDivElement>(null);
   const scanPreviewDialogRef = useRef<HTMLDialogElement>(null);
 
   const safeWidth = Number.isFinite(settings.widthMm) ? Math.max(settings.widthMm, 0) : 0;
@@ -35,6 +48,35 @@ export function LabelPreview({ row, mapping, settings, selectedCount, onOpenList
     if (!scanPreviewOpen && dialog.open) dialog.close();
   }, [scanPreviewOpen]);
 
+  useLayoutEffect(() => {
+    const stage = previewStageRef.current;
+    const fitFrame = previewFitFrameRef.current;
+    const label = fitFrame?.querySelector<HTMLElement>(".physical-label");
+    if (!stage || !label) {
+      setPreviewFitScale(1);
+      return undefined;
+    }
+
+    const updateScale = () => {
+      const stageStyle = getComputedStyle(stage);
+      const horizontalPadding = parseFloat(stageStyle.paddingLeft) + parseFloat(stageStyle.paddingRight);
+      const verticalPadding = parseFloat(stageStyle.paddingTop) + parseFloat(stageStyle.paddingBottom);
+      const nextScale = calculatePreviewFitScale(
+        stage.clientWidth - horizontalPadding,
+        stage.clientHeight - verticalPadding,
+        label.offsetWidth,
+        label.offsetHeight,
+      );
+      setPreviewFitScale((current) => Math.abs(current - nextScale) < 0.001 ? current : nextScale);
+    };
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(stage);
+    observer.observe(label);
+    updateScale();
+    return () => observer.disconnect();
+  }, [row]);
+
   const closeScanPreview = () => setScanPreviewOpen(false);
 
   const handleScanPreviewBackdropClick = (event: MouseEvent<HTMLDialogElement>) => {
@@ -44,14 +86,20 @@ export function LabelPreview({ row, mapping, settings, selectedCount, onOpenList
   return (
     <section className="rail-panel preview-panel">
       <SectionHeader>プレビュー</SectionHeader>
-      <div className="preview-stage">
+      <div ref={previewStageRef} className="preview-stage">
         {row ? (
-          <LabelVisual
-            row={row}
-            mapping={mapping}
-            settings={settings}
-            onHeightChange={setMeasuredHeightMm}
-          />
+          <div
+            ref={previewFitFrameRef}
+            className="preview-fit-frame"
+            style={{ transform: `translate(-50%, -50%) scale(${previewFitScale})` }}
+          >
+            <LabelVisual
+              row={row}
+              mapping={mapping}
+              settings={settings}
+              onHeightChange={setMeasuredHeightMm}
+            />
+          </div>
         ) : <p className="preview-empty">プレビューする商品がありません。</p>}
       </div>
       <p className="preview-note" aria-live="polite">
