@@ -9,14 +9,20 @@ import { PrinterSettingsPanel } from "./components/PrinterSettings";
 import { ProductGrid } from "./components/ProductGrid";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
+import { generateBarcodeTablePdf } from "./lib/pdf/generateBarcodeTable";
+import {
+  DEFAULT_PDF_TITLE_BASE,
+  createPdfTitles,
+  formatPdfIssueDate,
+} from "./lib/pdf/createPdfTitles";
 import {
   calculateLabelPageCount,
-  createPdfDownload,
   generateDirectPrintPages,
   generateLabelsPdf,
   validateLabelSettings,
   type PdfDownload,
 } from "./lib/pdf/generateLabels";
+import { createStoredZip } from "./lib/zip/createStoredZip";
 import {
   createMacPrintBundle,
   createMacPrintAppUrl,
@@ -26,7 +32,6 @@ import {
   MAC_PRINT_APP_NAME,
   startMacPrintBundleDownload,
   startPreparedMacPrintBundleDownload,
-  startPdfDownload,
 } from "./lib/macShortcutPrint";
 import {
   explainCsvReadError,
@@ -43,10 +48,9 @@ import {
 } from "./types/label";
 import type { FieldMapping, MappingKey } from "./types/mapping";
 
-function createPdfFileName(): string {
-  const date = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `labels-${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}.pdf`;
+function createZipDownload(bytes: Uint8Array, fileName: string): PdfDownload {
+  const blob = new Blob([bytes], { type: "application/zip" });
+  return { fileName, url: URL.createObjectURL(blob) };
 }
 
 export default function App() {
@@ -59,7 +63,8 @@ export default function App() {
   const [generating, setGenerating] = useState(false);
   const [printingMac, setPrintingMac] = useState(false);
   const [printerReadiness, setPrinterReadiness] = useState<MacPrinterReadiness | null>(null);
-  const [pdfDownload, setPdfDownload] = useState<PdfDownload | null>(null);
+  const [pdfDownloads, setPdfDownloads] = useState<PdfDownload[]>([]);
+  const [pdfTitle, setPdfTitle] = useState(DEFAULT_PDF_TITLE_BASE);
   const [previewListOpen, setPreviewListOpen] = useState(false);
   const [macAvailable] = useState(isMacOs);
   const [runningInMacApp] = useState(isMacPrintApp);
@@ -69,13 +74,13 @@ export default function App() {
   ) | null>(null);
 
   useEffect(() => () => {
-    if (pdfDownload) URL.revokeObjectURL(pdfDownload.url);
-  }, [pdfDownload]);
+    pdfDownloads.forEach((download) => URL.revokeObjectURL(download.url));
+  }, [pdfDownloads]);
 
   useEffect(() => {
-    setPdfDownload(null);
+    setPdfDownloads([]);
     setMessage((current) => current?.tone === "success" ? null : current);
-  }, [csvData, mapping, rowStates, settings]);
+  }, [csvData, mapping, rowStates, settings, pdfTitle]);
 
   const handleFile = async (file: File) => {
     setLoadingCsv(true);
@@ -112,7 +117,7 @@ export default function App() {
   const selectedEntries = useMemo(
     () => csvData?.rows.flatMap((row, index) => {
       const state = rowStates[index];
-      return state?.selected ? [{ row, copies: state.copies }] : [];
+      return state?.selected ? [{ row, copies: state.copies, imageFile: state.pdfImage }] : [];
     }) ?? [],
     [csvData, rowStates],
   );
@@ -130,14 +135,22 @@ export default function App() {
     setGenerating(true);
     setMessage(null);
     try {
-      const bytes = await generateLabelsPdf(selectedEntries, createDefaultLabelElements(mapping), settings);
-      const download = createPdfDownload(bytes, createPdfFileName());
-      setPdfDownload(download);
-      startPdfDownload(bytes, download.fileName);
+      const elements = createDefaultLabelElements(mapping);
+      const pdfTitles = createPdfTitles(pdfTitle, new Date());
+      const [labelBytes, tableBytes] = await Promise.all([
+        generateLabelsPdf(selectedEntries, elements, settings),
+        generateBarcodeTablePdf(selectedEntries, elements, pdfTitles.pageTitle),
+      ]);
+      const archiveBytes = createStoredZip([
+        { fileName: pdfTitles.labelsFileName, bytes: labelBytes },
+        { fileName: pdfTitles.tableFileName, bytes: tableBytes },
+      ]);
+      setPdfDownloads([createZipDownload(archiveBytes, pdfTitles.archiveFileName)]);
+      startMacPrintBundleDownload(archiveBytes, pdfTitles.archiveFileName);
       setMessage({
         tone: "success",
-        title: "PDFの保存を開始しました",
-        detail: `${totalPages}ページのラベルPDFを作成しました。保存されない場合は「PDFを保存」を押してください。`,
+        title: "PDFをZIPで保存しました",
+        detail: `${totalPages}ページのラベルPDFと、${selectedEntries.length}商品のバーコード一覧PDFを1つのZIPにまとめました。保存されない場合は画面下部のボタンから保存してください。`,
       });
     } catch (error) {
       setMessage({ tone: "error", ...explainPdfGenerationError(error) });
@@ -256,6 +269,7 @@ export default function App() {
               onCopiesChange={(index, copies) => updateRowState(index, {
                 copies: Math.min(999, Math.max(1, Number.isFinite(copies) ? Math.floor(copies) : 1)),
               })}
+              onPdfImageChange={(index, pdfImage) => updateRowState(index, { pdfImage })}
               onToggleMany={(indices, selected) => {
                 const targetIndices = new Set(indices);
                 setRowStates((current) =>
@@ -298,7 +312,7 @@ export default function App() {
             totalPages={totalPages}
             labelWidthMm={settings.widthMm}
             disabled={!mapping.barcode || totalPages === 0}
-            download={pdfDownload}
+            downloads={pdfDownloads}
             loading={generating}
             macAvailable={macAvailable}
             runningInMacApp={runningInMacApp}
@@ -306,6 +320,9 @@ export default function App() {
             macPrintReady={!runningInMacApp || printerReadiness?.canPrint === true}
             macPrintBlockedReason={printerReadiness?.summary}
             appName={MAC_PRINT_APP_NAME}
+            pdfTitle={pdfTitle}
+            pdfIssueDate={formatPdfIssueDate(new Date())}
+            onPdfTitleChange={setPdfTitle}
             onGenerate={handleGenerate}
             onMacPrint={handleMacPrint}
           />

@@ -7,17 +7,29 @@ const BASE_PROPS = {
   totalPages: 1,
   labelWidthMm: 58,
   disabled: false,
-  download: null,
+  downloads: [],
   loading: false,
   macAvailable: true,
   runningInMacApp: true,
   macLoading: false,
   appName: "LABEL PRINT",
+  pdfTitle: "秋冬商品一覧",
+  pdfIssueDate: "2026年8月28日発行",
+  onPdfTitleChange: vi.fn(),
   onGenerate: vi.fn(),
   onMacPrint: vi.fn(),
 };
 
 describe("PdfActions printer readiness", () => {
+  it("shows an editable PDF title with the automatic issue date", () => {
+    const html = renderToStaticMarkup(
+      <PdfActions {...BASE_PROPS} macPrintReady />,
+    );
+
+    expect(html).toContain('value="秋冬商品一覧"');
+    expect(html).toContain("- 2026年8月28日発行");
+  });
+
   it("disables direct printing and explains the blocker while the printer is unavailable", () => {
     const html = renderToStaticMarkup(
       <PdfActions
@@ -48,5 +60,22 @@ describe("PdfActions printer readiness", () => {
 
     expect(html).toContain('class="mac-print-button" type="button" disabled=""');
     expect(html).toContain("印刷処理中…");
+  });
+
+  it("shows one ZIP download link containing both PDFs", () => {
+    const html = renderToStaticMarkup(
+      <PdfActions
+        {...BASE_PROPS}
+        macPrintReady
+        downloads={[
+          { fileName: "catalog.zip", url: "blob:catalog" },
+        ]}
+      />,
+    );
+
+    expect(html).toContain("PDF ZIPを保存");
+    expect(html).toContain('download="catalog.zip"');
+    expect(html).not.toContain("ラベルPDF</a>");
+    expect(html).not.toContain("一覧PDF</a>");
   });
 });

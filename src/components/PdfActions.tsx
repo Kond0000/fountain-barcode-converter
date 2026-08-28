@@ -6,7 +6,7 @@ type PdfActionsProps = {
   totalPages: number;
   labelWidthMm: number;
   disabled: boolean;
-  download: PdfDownload | null;
+  downloads: PdfDownload[];
   loading: boolean;
   macAvailable: boolean;
   runningInMacApp: boolean;
@@ -14,6 +14,9 @@ type PdfActionsProps = {
   macPrintReady: boolean;
   macPrintBlockedReason?: string;
   appName: string;
+  pdfTitle: string;
+  pdfIssueDate: string;
+  onPdfTitleChange: (value: string) => void;
   onGenerate: () => void;
   onMacPrint: () => void;
 };
@@ -23,7 +26,7 @@ export function PdfActions({
   totalPages,
   labelWidthMm,
   disabled,
-  download,
+  downloads,
   loading,
   macAvailable,
   runningInMacApp,
@@ -31,6 +34,9 @@ export function PdfActions({
   macPrintReady,
   macPrintBlockedReason,
   appName,
+  pdfTitle,
+  pdfIssueDate,
+  onPdfTitleChange,
   onGenerate,
   onMacPrint,
 }: PdfActionsProps) {
@@ -44,19 +50,30 @@ export function PdfActions({
             <span>ラベル <strong>{labelWidthMm}</strong> mm × 高さ自動</span>
             <span>合計 <strong>{totalPages}</strong> ページ</span>
           </div>
+          <label className="pdf-title-control">
+            <span>PDFタイトル</span>
+            <input
+              type="text"
+              value={pdfTitle}
+              maxLength={60}
+              placeholder="例：秋冬商品一覧"
+              onChange={(event) => onPdfTitleChange(event.target.value)}
+            />
+            <span className="pdf-title-suffix">- {pdfIssueDate}</span>
+          </label>
           <div className="privacy-note"><LockIcon />データはこの端末内だけで処理されます</div>
         </div>
         <div className="pdf-action-buttons">
-          <div className={`pdf-save-controls ${download && !loading ? "is-ready" : ""}`}>
+          <div className={`pdf-save-controls ${downloads.length > 0 && !loading ? "is-ready" : ""}`}>
             {loading ? (
-              <button className="save-pdf-button" type="button" disabled>PDFを作成中…</button>
-            ) : download ? (
+              <button className="save-pdf-button" type="button" disabled>PDFをZIPにまとめています…</button>
+            ) : downloads.length > 0 ? (
               <>
-                <a className="save-pdf-button download-button" href={download.url} download={download.fileName}>PDFを保存</a>
+                <a className="save-pdf-button download-button" href={downloads[0].url} download={downloads[0].fileName}>PDF ZIPを保存</a>
                 <button className="regenerate-button" type="button" disabled={disabled || busy} onClick={onGenerate}>再作成</button>
               </>
             ) : (
-              <button className="save-pdf-button" type="button" disabled={disabled || busy} onClick={onGenerate}>PDFを保存</button>
+              <button className="save-pdf-button" type="button" disabled={disabled || busy} onClick={onGenerate}>PDFをZIPで保存</button>
             )}
           </div>
           <button

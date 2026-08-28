@@ -26,6 +26,7 @@ type ProductGridProps = {
   onActivate: (index: number) => void;
   onSelectedChange: (index: number, selected: boolean) => void;
   onCopiesChange: (index: number, copies: number) => void;
+  onPdfImageChange: (index: number, file?: File) => void;
   onToggleMany: (indices: number[], selected: boolean) => void;
 };
 
@@ -48,6 +49,7 @@ export function ProductGrid({
   onActivate,
   onSelectedChange,
   onCopiesChange,
+  onPdfImageChange,
   onToggleMany,
 }: ProductGridProps) {
   const [query, setQuery] = useState("");
@@ -79,6 +81,7 @@ export function ProductGrid({
   const template = [
     "38px",
     ...columns.map((column) => column.key === "productName" ? "minmax(180px, 1.5fr)" : "minmax(110px, 1fr)"),
+    "118px",
     "84px",
   ].join(" ");
   const first = filtered.length === 0 ? 0 : (page - 1) * PRODUCT_GRID_PAGE_SIZE + 1;
@@ -106,6 +109,7 @@ export function ProductGrid({
             />
           </div>
           {columns.map((column) => <div role="columnheader" key={column.key}>{column.label}</div>)}
+          <div role="columnheader">一覧PDF画像</div>
           <div role="columnheader">枚数</div>
         </div>
         {visible.length > 0 ? visible.map(({ row, index }) => (
@@ -120,6 +124,7 @@ export function ProductGrid({
             onActivate={onActivate}
             onSelectedChange={onSelectedChange}
             onCopiesChange={onCopiesChange}
+            onPdfImageChange={onPdfImageChange}
           />
         )) : <div className="empty-results">該当する商品がありません。</div>}
       </div>

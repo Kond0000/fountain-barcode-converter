@@ -13,4 +13,5 @@ export type CsvData = {
 export type RowState = {
   selected: boolean;
   copies: number;
+  pdfImage?: File;
 };

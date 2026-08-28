@@ -230,6 +230,14 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(32, 40, 51
 .product-grid-row { display: grid; grid-template-columns: var(--product-columns); min-width: 720px; }
 .product-grid-row > div { min-width: 0; display: flex; align-items: center; min-height: 41px; padding: 6px 11px; border-right: 1px solid #dfe4e8; border-bottom: 1px solid #dfe4e8; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
 .product-grid-row > div:last-child { border-right: 0; }
+.pdf-image-cell { gap: 5px; padding: 4px 6px !important; }
+.pdf-image-select { min-width: 0; flex: 1; height: 32px; display: grid; place-items: center; overflow: hidden; padding: 2px 6px; border: 1px solid #aab5bd; border-radius: 4px; background: #fff; color: #45525e; font-size: 10px; font-weight: 700; }
+.pdf-image-select:hover { border-color: var(--accent); background: var(--accent-soft); }
+.pdf-image-select.has-image { height: 84px; padding: 3px; background: #fff; }
+.pdf-image-select img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; }
+.pdf-image-select span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-image-remove { width: 24px; height: 28px; flex: 0 0 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #7b2d28; font-size: 17px; line-height: 1; }
+.pdf-image-remove:hover { background: #fff0ee; }
 .header-row { position: sticky; z-index: 10; top: 0; box-shadow: 0 1px 0 var(--border-dark); }
 .header-row > div { min-height: 42px; background: #f8fafb; color: #34404c; font-size: 12px; font-weight: 700; }
 .checkbox-cell { justify-content: center; padding: 5px !important; }
@@ -356,11 +364,16 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .pdf-summary > span { padding: 0 18px; border-right: 1px solid var(--border); color: #4d5965; font-size: 12px; white-space: nowrap; }
 .pdf-summary > span:first-child { padding-left: 0; }
 .pdf-summary strong { color: var(--ink); font-size: 16px; }
+.pdf-title-control { min-width: 0; display: grid; grid-template-columns: auto minmax(180px, 360px) auto; align-items: center; gap: 7px; color: #4d5965; font-size: 11px; font-weight: 700; }
+.pdf-title-control input { width: 100%; min-width: 0; height: 30px; padding: 5px 8px; border: 1px solid var(--border-dark); border-radius: 4px; background: #fff; color: var(--ink); font: inherit; }
+.pdf-title-control input:focus { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+.pdf-title-suffix { white-space: nowrap; }
 .privacy-note { display: flex; justify-content: flex-start; align-items: center; gap: 6px; color: #66717e; font-size: 10px; }
 .privacy-note svg { width: 14px; height: 14px; }
 .pdf-action-buttons { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 7px 9px; }
 .pdf-save-controls { min-width: 0; display: grid; }
 .pdf-save-controls.is-ready { grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.pdf-save-controls.is-ready .save-pdf-button { padding-inline: 8px; font-size: 11px; }
 .save-pdf-button, .mac-print-button { min-height: 46px; display: grid; place-items: center; padding: 8px 14px; border-radius: 4px; font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; }
 .save-pdf-button { border: 1px solid var(--accent); background: #fff; color: var(--accent-dark); }
 .save-pdf-button:hover:not(:disabled) { background: var(--accent-soft); }
@@ -372,7 +385,7 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .shortcut-note.is-unavailable { color: #7a5b20; }
 
 @media (max-width: 1100px) {
-  .app-shell.has-data { height: auto; min-height: 100vh; display: block; padding-bottom: 112px; overflow: visible; }
+  .app-shell.has-data { height: auto; min-height: 100vh; display: block; padding-bottom: 156px; overflow: visible; }
   .app-header.has-printer-settings .app-header-inner { grid-template-columns: minmax(0, 1fr); gap: 9px; }
   .app-shell.has-data > .app-header.has-printer-settings .app-header-inner { grid-template-columns: minmax(0, 1fr); }
   .app-brand { justify-content: space-between; }
@@ -442,7 +455,9 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
   .search-bar { width: 100%; }
   .pdf-actions { min-height: 104px; padding: 9px 12px; }
   .pdf-actions-inner { min-height: 85px; grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .pdf-action-context { display: none; }
+  .pdf-action-context { display: grid; gap: 7px; margin-bottom: 7px; }
+  .pdf-summary, .privacy-note { display: none; }
+  .pdf-title-control { grid-template-columns: auto minmax(0, 1fr) auto; }
   .save-pdf-button, .mac-print-button { min-height: 44px; padding: 7px 8px; font-size: 12px; }
   .regenerate-button { min-height: 44px; }
   .shortcut-note { font-size: 9px; }

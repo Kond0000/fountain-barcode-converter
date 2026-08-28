@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import type { CsvRow, RowState } from "../types/csv";
 import { formatPrice } from "../lib/format";
 import { formatVariantValue } from "../lib/label/formatVariant";
@@ -15,7 +15,64 @@ type ProductGridRowProps = {
   onActivate: (index: number) => void;
   onSelectedChange: (index: number, selected: boolean) => void;
   onCopiesChange: (index: number, copies: number) => void;
+  onPdfImageChange: (index: number, file?: File) => void;
 };
+
+type PdfImagePickerProps = {
+  file?: File;
+  rowName: string;
+  onChange: (file?: File) => void;
+};
+
+function PdfImagePicker({ file, rowName, onChange }: PdfImagePickerProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>();
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(undefined);
+      return undefined;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  return (
+    <div role="gridcell" className="pdf-image-cell" onClick={(event) => event.stopPropagation()}>
+      <input
+        ref={inputRef}
+        className="visually-hidden"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        aria-label={`${rowName}の一覧PDF画像を選択`}
+        onChange={(event) => {
+          onChange(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+      <button
+        className={`pdf-image-select ${file ? "has-image" : ""}`}
+        type="button"
+        title={file ? `${file.name}を変更` : "一覧PDFへ載せる画像を選択"}
+        onClick={() => inputRef.current?.click()}
+      >
+        {previewUrl ? <img src={previewUrl} alt="" /> : <span>{file ? file.name : "画像を追加"}</span>}
+      </button>
+      {file ? (
+        <button
+          className="pdf-image-remove"
+          type="button"
+          aria-label={`${rowName}の一覧PDF画像を削除`}
+          title="画像を削除"
+          onClick={() => onChange(undefined)}
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export function ProductGridRow({
   row,
@@ -27,6 +84,7 @@ export function ProductGridRow({
   onActivate,
   onSelectedChange,
   onCopiesChange,
+  onPdfImageChange,
 }: ProductGridRowProps) {
   const stop = (event: MouseEvent) => event.stopPropagation();
   const rowName = row[columns[0]?.field] || String(index + 1);
@@ -61,6 +119,11 @@ export function ProductGridRow({
           </div>
         );
       })}
+      <PdfImagePicker
+        file={state.pdfImage}
+        rowName={rowName}
+        onChange={(file) => onPdfImageChange(index, file)}
+      />
       <div role="gridcell" className="copies-cell" onClick={stop}>
         <input
           type="number"
