@@ -2,11 +2,12 @@ import type { FieldMapping, MappingKey } from "../../types/mapping";
 
 const candidates: Record<MappingKey, string[]> = {
   barcode: ["商品コード", "JAN", "JANコード", "SKU", "SKUコード", "品番", "Product Code", "Code"],
+  productNumber: ["品番", "グループコード", "型番", "Style No", "Style Number", "Item Number"],
   productName: ["商品名", "名称", "商品名称", "Title", "Product Name", "Name"],
   price: ["商品単価", "販売価格", "価格", "税込価格", "Price"],
   color: ["カラー", "色", "Color", "Colour"],
   size: ["サイズ", "Size"],
-  brand: ["ブランド", "Brand", "メーカー"],
+  brand: ["ブランド名", "ブランド", "Brand", "メーカー"],
 };
 
 function caseFold(value: string): string {

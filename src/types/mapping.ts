@@ -1,5 +1,6 @@
 export type FieldMapping = {
   barcode?: string;
+  productNumber?: string;
   productName?: string;
   price?: string;
   color?: string;
@@ -10,7 +11,7 @@ export type FieldMapping = {
 
 export type MappingKey = keyof Pick<
   FieldMapping,
-  "barcode" | "productName" | "price" | "color" | "size" | "brand"
+  "barcode" | "productNumber" | "productName" | "price" | "color" | "size" | "brand"
 >;
 
 export const mappingDefinitions: ReadonlyArray<{
@@ -19,6 +20,7 @@ export const mappingDefinitions: ReadonlyArray<{
   required?: boolean;
 }> = [
   { key: "barcode", label: "バーコード", required: true },
+  { key: "productNumber", label: "品番" },
   { key: "productName", label: "商品名" },
   { key: "price", label: "価格" },
   { key: "color", label: "カラー" },
