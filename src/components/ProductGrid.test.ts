@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createProductColumns,
+  getMatchingProductCodeIndices,
   getProductPage,
   PRODUCT_GRID_PAGE_SIZE,
 } from "./ProductGrid";
@@ -54,5 +55,32 @@ describe("product grid pagination", () => {
       Array.from({ length: 100 }, (_, index) => index + 100),
     );
     expect(getProductPage(indexedRows, 3).map(({ index }) => index)).toEqual([200, 201, 202, 203, 204]);
+  });
+});
+
+describe("product grid PDF images", () => {
+  const rows = [
+    { 商品コード: "NIM-NIMHP01-WHT-M", 商品名: "HELP??Tシャツ", サイズ: "M" },
+    { 商品コード: "NIM-NIMHP01-WHT-L", 商品名: "別の商品名でも対象", サイズ: "L" },
+    { 商品コード: "NIM-NIMHP01-WHT-XL", 商品名: "HELP??Tシャツ", サイズ: "XL" },
+    { 商品コード: "NIM-NIMHP01-BLK-M", 商品名: "HELP??Tシャツ", サイズ: "M" },
+    { 商品コード: "", 商品名: "HELP??Tシャツ", サイズ: "M" },
+    { 商品コード: "NIM-NIMHP01-WHT", 商品名: "HELP??Tシャツ", サイズ: "S" },
+  ];
+
+  it("finds size variants whose product code matches through the color segment", () => {
+    expect(getMatchingProductCodeIndices(rows, "商品コード", "サイズ", 0)).toEqual([0, 1, 2]);
+  });
+
+  it("keeps a different color in a separate image group", () => {
+    expect(getMatchingProductCodeIndices(rows, "商品コード", "サイズ", 3)).toEqual([3]);
+  });
+
+  it("updates only the source row when its product code is empty", () => {
+    expect(getMatchingProductCodeIndices(rows, "商品コード", "サイズ", 4)).toEqual([4]);
+  });
+
+  it("updates only the source row when no barcode field is mapped", () => {
+    expect(getMatchingProductCodeIndices(rows, undefined, "サイズ", 1)).toEqual([1]);
   });
 });

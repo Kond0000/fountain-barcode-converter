@@ -18,6 +18,38 @@ export function getProductPage(
   return rows.slice(start, start + pageSize);
 }
 
+function getProductCodeThroughColor(
+  row: CsvRow,
+  barcodeField: string,
+  sizeField: string | undefined,
+): string {
+  const barcode = row[barcodeField]?.trim() ?? "";
+  const size = sizeField ? row[sizeField]?.trim() : "";
+  if (!barcode) return "";
+  if (!size) return `exact:${barcode}`;
+
+  const sizeSuffix = `-${size}`;
+  return barcode.endsWith(sizeSuffix)
+    ? `through-color:${barcode.slice(0, -sizeSuffix.length)}`
+    : `exact:${barcode}`;
+}
+
+export function getMatchingProductCodeIndices(
+  rows: CsvRow[],
+  barcodeField: string | undefined,
+  sizeField: string | undefined,
+  sourceIndex: number,
+): number[] {
+  if (!barcodeField) return [sourceIndex];
+
+  const sourceCode = getProductCodeThroughColor(rows[sourceIndex] ?? {}, barcodeField, sizeField);
+  if (!sourceCode) return [sourceIndex];
+
+  return rows.flatMap((row, index) =>
+    getProductCodeThroughColor(row, barcodeField, sizeField) === sourceCode ? [index] : [],
+  );
+}
+
 type ProductGridProps = {
   rows: CsvRow[];
   rowStates: RowState[];

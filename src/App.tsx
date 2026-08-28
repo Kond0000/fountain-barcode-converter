@@ -6,7 +6,7 @@ import { LabelPreviewModal } from "./components/LabelPreviewModal";
 import { LabelSettingsPanel } from "./components/LabelSettings";
 import { PdfActions } from "./components/PdfActions";
 import { PrinterSettingsPanel } from "./components/PrinterSettings";
-import { ProductGrid } from "./components/ProductGrid";
+import { ProductGrid, getMatchingProductCodeIndices } from "./components/ProductGrid";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
 import { generateBarcodeTablePdf } from "./lib/pdf/generateBarcodeTable";
@@ -269,7 +269,17 @@ export default function App() {
               onCopiesChange={(index, copies) => updateRowState(index, {
                 copies: Math.min(999, Math.max(1, Number.isFinite(copies) ? Math.floor(copies) : 1)),
               })}
-              onPdfImageChange={(index, pdfImage) => updateRowState(index, { pdfImage })}
+              onPdfImageChange={(index, pdfImage) => {
+                const matchingIndices = new Set(getMatchingProductCodeIndices(
+                  csvData.rows,
+                  mapping.barcode,
+                  mapping.size,
+                  index,
+                ));
+                setRowStates((current) => current.map((state, rowIndex) =>
+                  matchingIndices.has(rowIndex) ? { ...state, pdfImage } : state,
+                ));
+              }}
               onToggleMany={(indices, selected) => {
                 const targetIndices = new Set(indices);
                 setRowStates((current) =>
