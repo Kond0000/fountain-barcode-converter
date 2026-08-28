@@ -305,7 +305,11 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .preview-name-line { display: block; white-space: nowrap; }
 .preview-details-row { width: 100%; display: grid; grid-template-columns: minmax(0, max-content) max-content; align-items: baseline; justify-content: space-between; white-space: nowrap; }
 .preview-details-row.is-stacked { grid-template-columns: minmax(0, 1fr); }
+.preview-variant-container { min-width: 0; display: flex; align-items: center; white-space: normal; }
+.preview-variant-color { min-width: 0; align-self: stretch; display: grid; flex: 0 0 auto; place-items: center start; }
+.preview-variant-line { display: block; white-space: nowrap; }
 .preview-variant-container { min-width: 0; font-weight: 500; }
+.preview-variant-size { align-self: stretch; display: grid; flex: 0 0 auto; box-sizing: border-box; place-items: center start; border-left: 1px solid currentColor; white-space: nowrap; }
 .preview-price { font-weight: 600; text-align: right; white-space: nowrap; }
 .preview-details-row.is-stacked .preview-price { grid-column: 1; justify-self: end; }
 .preview-brand { font-weight: 600; letter-spacing: 0.04em; text-align: center; }
@@ -367,7 +371,6 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .pdf-title-control { min-width: 0; display: grid; grid-template-columns: auto minmax(180px, 360px) auto; align-items: center; gap: 7px; color: #4d5965; font-size: 11px; font-weight: 700; }
 .pdf-title-control input { width: 100%; min-width: 0; height: 30px; padding: 5px 8px; border: 1px solid var(--border-dark); border-radius: 4px; background: #fff; color: var(--ink); font: inherit; }
 .pdf-title-control input:focus { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
-.pdf-title-suffix { white-space: nowrap; }
 .privacy-note { display: flex; justify-content: flex-start; align-items: center; gap: 6px; color: #66717e; font-size: 10px; }
 .privacy-note svg { width: 14px; height: 14px; }
 .pdf-action-buttons { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 7px 9px; }

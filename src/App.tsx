@@ -13,7 +13,6 @@ import { generateBarcodeTablePdf } from "./lib/pdf/generateBarcodeTable";
 import {
   DEFAULT_PDF_TITLE_BASE,
   createPdfTitles,
-  formatPdfIssueDate,
 } from "./lib/pdf/createPdfTitles";
 import {
   calculateLabelPageCount,
@@ -136,7 +135,7 @@ export default function App() {
     setMessage(null);
     try {
       const elements = createDefaultLabelElements(mapping);
-      const pdfTitles = createPdfTitles(pdfTitle, new Date());
+      const pdfTitles = createPdfTitles(pdfTitle);
       const [labelBytes, tableBytes] = await Promise.all([
         generateLabelsPdf(selectedEntries, elements, settings),
         generateBarcodeTablePdf(selectedEntries, elements, pdfTitles.pageTitle),
@@ -331,7 +330,6 @@ export default function App() {
             macPrintBlockedReason={printerReadiness?.summary}
             appName={MAC_PRINT_APP_NAME}
             pdfTitle={pdfTitle}
-            pdfIssueDate={formatPdfIssueDate(new Date())}
             onPdfTitleChange={setPdfTitle}
             onGenerate={handleGenerate}
             onMacPrint={handleMacPrint}

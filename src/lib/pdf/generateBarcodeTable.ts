@@ -1,6 +1,17 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
 import { formatVariantValue } from "../label/formatVariant";
+import { formatProductNumber } from "../label/formatProductNumber";
+import {
+  calculateVariantCenterY,
+  calculateVariantColorMaxWidth,
+  calculateVariantSeparatorOffset,
+  calculateVariantSizeTextX,
+  fitVariantTextToSingleLine,
+  formatVariantText,
+  getVariantColumns,
+  VARIANT_SEPARATOR_GAP_MM,
+} from "../label/layoutVariant";
 import { LABEL_FONT_FAMILY, normalizeSingleLineText } from "../label/fitText";
 import { wrapTextLines } from "../label/wrapText";
 import { mmToPt } from "../units/mmToPt";
@@ -17,6 +28,7 @@ export const BARCODE_TABLE_ITEMS_PER_PAGE =
   BARCODE_TABLE_CARD_COLUMNS * BARCODE_TABLE_CARD_ROWS;
 export const BARCODE_TABLE_PIXELS_PER_MM = 16;
 export const BARCODE_TABLE_ACCENT_COLOR = "#b8b8b3";
+export const BARCODE_TABLE_VARIANT_PRICE_GAP_MM = 1;
 
 const PAGE_MARGIN_MM = 6;
 const GRID_TOP_MM = 24;
@@ -73,14 +85,29 @@ export function usesBarcodeTablePlaceholder(entry: BarcodeTableEntry): boolean {
 
 export function formatBarcodeTableVariant(variantParts: string[]): string {
   const normalizedParts = variantParts.map((part) => part.trim() || "-");
-  if (normalizedParts.length >= 2) {
-    return `${normalizedParts[0]}｜${normalizedParts[1]}`;
-  }
-  return normalizedParts[0] ?? "-";
+  return formatVariantText(normalizedParts, "｜") || "-";
+}
+
+export function getBarcodeTableVariantColumns(variantParts: string[]): {
+  color: string;
+  size: string;
+} {
+  const columns = getVariantColumns(variantParts);
+  return {
+    color: columns.color || "-",
+    size: columns.size,
+  };
 }
 
 export function formatBarcodeTableBrand(brand: string): string {
   return normalizeSingleLineText(brand).trim() || "FOUNTAIN";
+}
+
+export function formatBarcodeTableMetadata(brand: string, productNumber: string): string {
+  return [
+    `BRAND / ${formatBarcodeTableBrand(brand)}`,
+    formatProductNumber(productNumber),
+  ].filter(Boolean).join(" | ");
 }
 
 export function formatBarcodeTableCodeValue(barcodeValue: string, barcode: string): string {
@@ -95,6 +122,7 @@ function resolveBarcodeTableContent(row: CsvRow, elements: LabelElement[]) {
     price: "",
     barcode: "",
     barcodeValue: "",
+    productNumber: "",
   };
 
   elements.forEach((element) => {
@@ -429,9 +457,6 @@ function drawPageHeader(
 }
 
 function drawPageFooter(context: CanvasRenderingContext2D): void {
-  const date = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const createdDate = `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())}`;
   const margin = mmToPixels(PAGE_MARGIN_MM);
   context.strokeStyle = "#111111";
   context.lineWidth = Math.max(1, mmToPixels(0.3));
@@ -446,12 +471,6 @@ function drawPageFooter(context: CanvasRenderingContext2D): void {
   context.fillText(
     "バーコードが読み取れない場合は、下部の商品コードをご確認ください。",
     margin,
-    mmToPixels(294),
-  );
-  context.textAlign = "right";
-  context.fillText(
-    `作成日: ${createdDate}`,
-    context.canvas.width - margin,
     mmToPixels(294),
   );
 }
@@ -486,7 +505,7 @@ async function renderBarcodeTablePage(
   const cardHeight = mmToPixels(cardHeightMm);
   const cardGap = mmToPixels(CARD_GAP_MM);
   const cardPadding = mmToPixels(CARD_PADDING_MM);
-  const imageHeight = mmToPixels(CARD_IMAGE_HEIGHT_MM);
+  const baseImageHeight = mmToPixels(CARD_IMAGE_HEIGHT_MM);
   const barcodeAreaHeight = mmToPixels(CARD_BARCODE_AREA_HEIGHT_MM);
   const barcodeValueHeight = mmToPixels(CARD_BARCODE_VALUE_HEIGHT_MM);
   const barcodeMaxWidth = cardWidth - mmToPixels(5);
@@ -512,6 +531,36 @@ async function renderBarcodeTablePage(
       const left = mmToPixels(PAGE_MARGIN_MM) + column * (cardWidth + cardGap);
       const top = mmToPixels(GRID_TOP_MM) + row * (cardHeight + cardGap);
       const content = contents[itemIndex];
+      const contentLeft = left + cardPadding;
+      const contentWidth = cardWidth - cardPadding * 2;
+      setFont(context, 2.1, 800);
+      const preferredVariantFontSize = mmToPixels(2.1);
+      const variantLineHeight = mmToPixels(2.7);
+      const variantColumns = getBarcodeTableVariantColumns(content.variantParts);
+      const sizeColumnWidth = variantColumns.size
+        ? Math.min(mmToPixels(9), Math.max(context.measureText(variantColumns.size).width, 1))
+        : 0;
+      const variantSeparatorBeforeGap = variantColumns.size
+        ? mmToPixels(VARIANT_SEPARATOR_GAP_MM)
+        : 0;
+      const variantSeparatorAfterGap = variantColumns.size
+        ? mmToPixels(VARIANT_SEPARATOR_GAP_MM)
+        : 0;
+      const colorColumnWidth = calculateVariantColorMaxWidth(
+        contentWidth,
+        sizeColumnWidth,
+        variantSeparatorBeforeGap,
+        variantSeparatorAfterGap,
+      );
+      const variantColorLayout = fitVariantTextToSingleLine({
+        text: variantColumns.color,
+        maxWidth: colorColumnWidth,
+        preferredFontSize: preferredVariantFontSize,
+        preferredLineHeight: variantLineHeight,
+        measureAtPreferredSize: (value) => context.measureText(value).width,
+      });
+      const variantPriceGap = mmToPixels(BARCODE_TABLE_VARIANT_PRICE_GAP_MM);
+      const imageHeight = baseImageHeight - variantPriceGap;
 
       context.fillStyle = "#ffffff";
       context.fillRect(left, top, cardWidth, cardHeight);
@@ -548,15 +597,17 @@ async function renderBarcodeTablePage(
         badgeHeight,
       );
 
-      const contentLeft = left + cardPadding;
-      const contentWidth = cardWidth - cardPadding * 2;
       const brandTop = imageTop + imageHeight + mmToPixels(0.6);
       setFont(context, 1.7, 700);
       context.fillStyle = "#585858";
       context.textAlign = "left";
       context.textBaseline = "middle";
       context.fillText(
-        truncateText(context, `BRAND / ${formatBarcodeTableBrand(content.brand)}`, contentWidth),
+        truncateText(
+          context,
+          formatBarcodeTableMetadata(content.brand, content.productNumber),
+          contentWidth,
+        ),
         contentLeft,
         brandTop + mmToPixels(1.25),
       );
@@ -574,17 +625,44 @@ async function renderBarcodeTablePage(
       );
 
       const variantTop = productNameTop + mmToPixels(6.2);
-      setFont(context, 2.1, 800);
+      const variantCenterY = calculateVariantCenterY(variantTop, variantLineHeight);
+      context.font = `800 ${variantColorLayout.fontSize}px ${LABEL_FONT_FAMILY}`;
+      const variantColorTextWidth = context.measureText(variantColorLayout.text).width;
       context.fillStyle = "#111111";
       context.textAlign = "left";
       context.textBaseline = "middle";
       context.fillText(
-        truncateText(context, formatBarcodeTableVariant(content.variantParts), contentWidth),
+        variantColorLayout.text,
         contentLeft,
-        variantTop + mmToPixels(1.6),
+        variantCenterY,
       );
 
-      const priceTop = variantTop + mmToPixels(2.8);
+      if (variantColumns.size) {
+        const variantBlockHeight = variantLineHeight;
+        const separatorX = contentLeft + calculateVariantSeparatorOffset(
+          variantColorTextWidth,
+          colorColumnWidth,
+          variantSeparatorBeforeGap,
+        );
+        context.strokeStyle = "#111111";
+        context.lineWidth = Math.max(1, mmToPixels(0.18));
+        context.beginPath();
+        context.moveTo(separatorX, variantTop + mmToPixels(0.2));
+        context.lineTo(separatorX, variantTop + variantBlockHeight - mmToPixels(0.2));
+        context.stroke();
+        setFont(context, 2.1, 800);
+        context.textAlign = "left";
+        context.textBaseline = "middle";
+        context.fillText(
+          truncateText(context, variantColumns.size, sizeColumnWidth),
+          calculateVariantSizeTextX(separatorX, variantSeparatorAfterGap),
+          variantCenterY,
+        );
+      }
+
+      const priceTop = variantTop
+        + mmToPixels(2.8)
+        + variantPriceGap;
       setFont(context, 2.8, 800);
       context.fillStyle = "#111111";
       context.textAlign = "left";

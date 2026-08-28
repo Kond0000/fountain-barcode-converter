@@ -24,6 +24,14 @@ describe("label settings", () => {
     ]);
   });
 
+  it("keeps the product number as visible text without changing the encoded barcode field", () => {
+    expect(createDefaultLabelElements({ barcode: "商品コード", productNumber: "グループコード" })).toEqual([
+      { type: "barcode", sourceField: "商品コード", barcodeType: "code128" },
+      { type: "text", sourceField: "商品コード", role: "barcodeValue" },
+      { type: "text", sourceField: "グループコード", role: "productNumber" },
+    ]);
+  });
+
   it("keeps related items closer than separate content groups", () => {
     expect(LABEL_LAYOUT_MM.sectionGap).toBeGreaterThan(LABEL_LAYOUT_MM.itemGap);
     expect(LABEL_LAYOUT_MM.itemGap).toBeGreaterThan(LABEL_LAYOUT_MM.barcodeValueGap);

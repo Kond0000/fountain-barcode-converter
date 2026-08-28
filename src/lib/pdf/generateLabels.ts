@@ -2,8 +2,19 @@ import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
 import { fitTextToSingleLine, LABEL_FONT_FAMILY } from "../label/fitText";
 import { formatVariantValue } from "../label/formatVariant";
+import { formatProductNumber } from "../label/formatProductNumber";
 import { shouldStackDetailsRow } from "../label/layoutDetailsRow";
 import { layoutProductName } from "../label/layoutProductName";
+import {
+  calculateVariantCenterY,
+  calculateVariantColorMaxWidth,
+  calculateVariantSeparatorOffset,
+  calculateVariantSizeTextX,
+  fitVariantTextToSingleLine,
+  formatVariantText,
+  getVariantColumns,
+  VARIANT_SEPARATOR_GAP_MM,
+} from "../label/layoutVariant";
 import { wrapTextLines } from "../label/wrapText";
 import { MM_PER_INCH, mmToPt, POINTS_PER_INCH } from "../units/mmToPt";
 import type { CsvRow } from "../../types/csv";
@@ -142,6 +153,7 @@ function resolveContent(row: CsvRow, elements: LabelElement[]) {
     price: "",
     barcode: "",
     barcodeValue: "",
+    productNumber: "",
   };
 
   elements.forEach((element) => {
@@ -175,9 +187,14 @@ type TextLayoutItem = {
 type DetailsLayoutItem = {
   type: "details";
   section: "product";
-  variant: string;
+  variantColor: string;
+  variantSize: string;
+  variantSizeWidth: number;
+  variantSeparatorOffset: number;
+  variantSeparatorAfterGap: number;
   price: string;
   variantFontSize: number;
+  variantSizeFontSize: number;
   variantLineHeight: number;
   variantWeight: number;
   priceFontSize: number;
@@ -288,25 +305,66 @@ function createProductNameLayoutItem(
 }
 
 function createDetailsLayoutItem(
+  context: CanvasRenderingContext2D,
   parts: string[],
   price: string,
+  maxWidth: number,
 ): DetailsLayoutItem | null {
-  const variant = parts.join(" / ");
+  const variant = formatVariantText(parts);
   if (!variant && !price) return null;
   const variantStyle = LABEL_LAYOUT_MM.variant;
   const priceStyle = LABEL_LAYOUT_MM.price;
-  const variantFontSize = mmToLabelRenderPixels(variantStyle.fontSize);
+  const preferredVariantFontSize = mmToLabelRenderPixels(variantStyle.fontSize);
   const variantLineHeight = mmToLabelRenderPixels(variantStyle.lineHeight);
   const priceFontSize = mmToLabelRenderPixels(priceStyle.fontSize);
   const priceLineHeight = mmToLabelRenderPixels(priceStyle.lineHeight);
   const rowGap = mmToLabelRenderPixels(LABEL_LAYOUT_MM.itemGap);
   const stacked = shouldStackDetailsRow({ variant, price });
+  context.font = `${variantStyle.weight} ${preferredVariantFontSize}px ${LABEL_FONT_FAMILY}`;
+  const variantColumns = getVariantColumns(parts);
+  const variantSeparatorBeforeGap = variantColumns.size
+    ? mmToLabelRenderPixels(VARIANT_SEPARATOR_GAP_MM)
+    : 0;
+  const variantSeparatorAfterGap = variantColumns.size
+    ? mmToLabelRenderPixels(VARIANT_SEPARATOR_GAP_MM)
+    : 0;
+  const variantSizeWidth = variantColumns.size
+    ? Math.max(context.measureText(variantColumns.size).width, 1)
+    : 0;
+  const variantColorWidth = calculateVariantColorMaxWidth(
+    maxWidth,
+    variantSizeWidth,
+    variantSeparatorBeforeGap,
+    variantSeparatorAfterGap,
+  );
+  const variantColorLayout = fitVariantTextToSingleLine({
+    text: variantColumns.color,
+    maxWidth: variantColorWidth,
+    preferredFontSize: preferredVariantFontSize,
+    preferredLineHeight: variantLineHeight,
+    measureAtPreferredSize: (value) => context.measureText(value).width,
+  });
+  const variantHeight = variantColumns.color || variantColumns.size
+    ? variantLineHeight
+    : 0;
+  const fittedVariantFontSize = snapToPrinterDot(variantColorLayout.fontSize);
+  context.font = `${variantStyle.weight} ${fittedVariantFontSize}px ${LABEL_FONT_FAMILY}`;
+  const variantSeparatorOffset = calculateVariantSeparatorOffset(
+    context.measureText(variantColorLayout.text).width,
+    variantColorWidth,
+    variantSeparatorBeforeGap,
+  );
   return {
     type: "details",
     section: "product",
-    variant,
+    variantColor: variantColorLayout.text,
+    variantSize: variantColumns.size,
+    variantSizeWidth,
+    variantSeparatorOffset,
+    variantSeparatorAfterGap,
     price,
-    variantFontSize,
+    variantFontSize: fittedVariantFontSize,
+    variantSizeFontSize: preferredVariantFontSize,
     variantLineHeight,
     variantWeight: variantStyle.weight,
     priceFontSize,
@@ -315,8 +373,8 @@ function createDetailsLayoutItem(
     rowGap,
     stacked,
     height: stacked
-      ? variantLineHeight + rowGap + priceLineHeight
-      : Math.max(variantLineHeight, priceLineHeight),
+      ? variantHeight + rowGap + priceLineHeight
+      : Math.max(variantHeight, priceLineHeight),
   };
 }
 
@@ -359,14 +417,46 @@ function drawDetailsLayoutItem(
 ): void {
   context.textBaseline = "middle";
   context.fillStyle = "#000000";
-  const variantY = item.stacked ? y + item.variantLineHeight / 2 : y + item.height / 2;
+  const variantTop = item.stacked
+    ? y
+    : y + (item.height - item.variantLineHeight) / 2;
+  const variantBlockHeight = item.variantColor || item.variantSize
+    ? item.variantLineHeight
+    : 0;
+  const variantCenterY = calculateVariantCenterY(variantTop, variantBlockHeight);
   const priceY = item.stacked
-    ? y + item.variantLineHeight + item.rowGap + item.priceLineHeight / 2
+    ? y + variantBlockHeight + item.rowGap + item.priceLineHeight / 2
     : y + item.height / 2;
-  if (item.variant) {
+  if (item.variantColor) {
     context.font = `${item.variantWeight} ${item.variantFontSize}px ${LABEL_FONT_FAMILY}`;
     context.textAlign = "left";
-    context.fillText(item.variant, contentLeft, snapCoordinateToPrinterDot(variantY));
+    context.fillText(
+      item.variantColor,
+      contentLeft,
+      snapCoordinateToPrinterDot(variantCenterY),
+    );
+  }
+  if (item.variantSize) {
+    const separatorX = contentLeft + item.variantSeparatorOffset;
+    context.strokeStyle = "#000000";
+    context.lineWidth = LABEL_RENDER_SCALE;
+    context.beginPath();
+    context.moveTo(
+      snapCoordinateToPrinterDot(separatorX),
+      snapCoordinateToPrinterDot(variantTop),
+    );
+    context.lineTo(
+      snapCoordinateToPrinterDot(separatorX),
+      snapCoordinateToPrinterDot(variantTop + variantBlockHeight),
+    );
+    context.stroke();
+    context.font = `${item.variantWeight} ${item.variantSizeFontSize}px ${LABEL_FONT_FAMILY}`;
+    context.textAlign = "left";
+    context.fillText(
+      item.variantSize,
+      calculateVariantSizeTextX(separatorX, item.variantSeparatorAfterGap),
+      snapCoordinateToPrinterDot(variantCenterY),
+    );
   }
   if (item.price) {
     context.font = `${item.priceWeight} ${item.priceFontSize}px ${LABEL_FONT_FAMILY}`;
@@ -432,7 +522,8 @@ async function renderLabelSourceCanvas(
   };
   const productNameItem = createProductNameLayoutItem(measureContext, content.productName, maxWidth);
   if (productNameItem) items.push(productNameItem);
-  const detailsItem = createDetailsLayoutItem(content.variantParts, content.price);
+  addText(formatProductNumber(content.productNumber), LABEL_LAYOUT_MM.productNumber, "product", "left");
+  const detailsItem = createDetailsLayoutItem(measureContext, content.variantParts, content.price, maxWidth);
   if (detailsItem) items.push(detailsItem);
   items.push({ type: "barcode", section: "barcode", canvas: barcodeCanvas, width: barcodeWidth, height: barcodeHeight });
   addText(content.barcodeValue || content.barcode, LABEL_LAYOUT_MM.barcodeValue, "barcode");

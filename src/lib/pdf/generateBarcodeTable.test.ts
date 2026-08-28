@@ -8,10 +8,13 @@ import {
   BARCODE_TABLE_PAGE_HEIGHT_MM,
   BARCODE_TABLE_PAGE_WIDTH_MM,
   BARCODE_TABLE_PIXELS_PER_MM,
+  BARCODE_TABLE_VARIANT_PRICE_GAP_MM,
   calculateBarcodeTablePageCount,
   createBarcodeTableCardSize,
   createBarcodeTablePageSize,
   formatBarcodeTableBrand,
+  formatBarcodeTableMetadata,
+  getBarcodeTableVariantColumns,
   getBarcodeTableEntries,
   formatBarcodeTableCodeValue,
   formatBarcodeTableVariant,
@@ -43,6 +46,10 @@ describe("barcode card PDF layout", () => {
     expect(BARCODE_TABLE_ACCENT_COLOR).toBe("#b8b8b3");
   });
 
+  it("keeps a visible one millimeter gap between the variant and price rows", () => {
+    expect(BARCODE_TABLE_VARIANT_PRICE_GAP_MM).toBe(1);
+  });
+
   it("renders the catalog page at about 406 dpi", () => {
     expect(BARCODE_TABLE_PIXELS_PER_MM).toBe(16);
     expect(BARCODE_TABLE_PIXELS_PER_MM * 25.4).toBeCloseTo(406.4);
@@ -57,10 +64,24 @@ describe("barcode card PDF layout", () => {
       .toBe("-");
   });
 
+  it("keeps color and size in separate columns when the color wraps", () => {
+    expect(getBarcodeTableVariantColumns(["BLACK/PURPLE_BLACK_BROWN", "1"]))
+      .toEqual({ color: "BLACK / PURPLE_BLACK_BROWN", size: "1" });
+    expect(getBarcodeTableVariantColumns(["Brown"]))
+      .toEqual({ color: "Brown", size: "" });
+  });
+
   it("uses FOUNTAIN when the brand is empty", () => {
     expect(formatBarcodeTableBrand("")).toBe("FOUNTAIN");
     expect(formatBarcodeTableBrand("   ")).toBe("FOUNTAIN");
     expect(formatBarcodeTableBrand("Kelen")).toBe("Kelen");
+  });
+
+  it("places the product number with the product metadata instead of the barcode value", () => {
+    expect(formatBarcodeTableMetadata("", "271033"))
+      .toBe("BRAND / FOUNTAIN | 271033");
+    expect(formatBarcodeTableMetadata("Kelen", ""))
+      .toBe("BRAND / Kelen");
   });
 
   it("shows the product code without a CODE prefix", () => {

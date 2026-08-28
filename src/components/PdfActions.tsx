@@ -15,7 +15,6 @@ type PdfActionsProps = {
   macPrintBlockedReason?: string;
   appName: string;
   pdfTitle: string;
-  pdfIssueDate: string;
   onPdfTitleChange: (value: string) => void;
   onGenerate: () => void;
   onMacPrint: () => void;
@@ -35,7 +34,6 @@ export function PdfActions({
   macPrintBlockedReason,
   appName,
   pdfTitle,
-  pdfIssueDate,
   onPdfTitleChange,
   onGenerate,
   onMacPrint,
@@ -59,7 +57,6 @@ export function PdfActions({
               placeholder="例：秋冬商品一覧"
               onChange={(event) => onPdfTitleChange(event.target.value)}
             />
-            <span className="pdf-title-suffix">- {pdfIssueDate}</span>
           </label>
           <div className="privacy-note"><LockIcon />データはこの端末内だけで処理されます</div>
         </div>

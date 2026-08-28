@@ -14,20 +14,19 @@ const BASE_PROPS = {
   macLoading: false,
   appName: "LABEL PRINT",
   pdfTitle: "秋冬商品一覧",
-  pdfIssueDate: "2026年8月28日発行",
   onPdfTitleChange: vi.fn(),
   onGenerate: vi.fn(),
   onMacPrint: vi.fn(),
 };
 
 describe("PdfActions printer readiness", () => {
-  it("shows an editable PDF title with the automatic issue date", () => {
+  it("shows an editable PDF title without an automatic issue date", () => {
     const html = renderToStaticMarkup(
       <PdfActions {...BASE_PROPS} macPrintReady />,
     );
 
     expect(html).toContain('value="秋冬商品一覧"');
-    expect(html).toContain("- 2026年8月28日発行");
+    expect(html).not.toContain("発行");
   });
 
   it("disables direct printing and explains the blocker while the printer is unavailable", () => {

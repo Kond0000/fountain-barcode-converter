@@ -6,7 +6,7 @@ export type LabelSettings = {
 };
 
 export type LabelElement =
-  | { type: "text"; sourceField: string; role: "brand" | "productName" | "price" | "barcodeValue" }
+  | { type: "text"; sourceField: string; role: "brand" | "productNumber" | "productName" | "price" | "barcodeValue" }
   | { type: "compositeText"; sourceFields: string[]; separator: string; role: "variant" }
   | { type: "barcode"; sourceField: string; barcodeType: "code128" };
 
@@ -33,6 +33,7 @@ export const LABEL_LAYOUT_MM = {
   price: { fontSize: 3.8, lineHeight: 4.8, weight: 600 },
   barcodeHeight: 11.5,
   barcodeValue: { fontSize: 2.4, lineHeight: 3, weight: 500 },
+  productNumber: { fontSize: 2.4, lineHeight: 3, weight: 600 },
 } as const;
 
 export function createDefaultLabelElements(mapping: FieldMapping): LabelElement[] {
@@ -48,6 +49,9 @@ export function createDefaultLabelElements(mapping: FieldMapping): LabelElement[
   if (mapping.barcode) {
     elements.push({ type: "barcode", sourceField: mapping.barcode, barcodeType: "code128" });
     elements.push({ type: "text", sourceField: mapping.barcode, role: "barcodeValue" });
+  }
+  if (mapping.productNumber) {
+    elements.push({ type: "text", sourceField: mapping.productNumber, role: "productNumber" });
   }
   return elements;
 }
