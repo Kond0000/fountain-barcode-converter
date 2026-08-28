@@ -6,7 +6,7 @@ import { LabelPreviewModal } from "./components/LabelPreviewModal";
 import { LabelSettingsPanel } from "./components/LabelSettings";
 import { PdfActions } from "./components/PdfActions";
 import { PrinterSettingsPanel } from "./components/PrinterSettings";
-import { ProductGrid, getMatchingProductCodeIndices } from "./components/ProductGrid";
+import { ProductGrid, getMatchingPdfImageIndices } from "./components/ProductGrid";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
 import { generateBarcodeTablePdf } from "./lib/pdf/generateBarcodeTable";
@@ -269,10 +269,9 @@ export default function App() {
                 copies: Math.min(999, Math.max(1, Number.isFinite(copies) ? Math.floor(copies) : 1)),
               })}
               onPdfImageChange={(index, pdfImage) => {
-                const matchingIndices = new Set(getMatchingProductCodeIndices(
+                const matchingIndices = new Set(getMatchingPdfImageIndices(
                   csvData.rows,
-                  mapping.barcode,
-                  mapping.size,
+                  mapping,
                   index,
                 ));
                 setRowStates((current) => current.map((state, rowIndex) =>

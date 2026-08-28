@@ -34,19 +34,36 @@ function getProductCodeThroughColor(
     : `exact:${barcode}`;
 }
 
-export function getMatchingProductCodeIndices(
+export function getMatchingPdfImageIndices(
   rows: CsvRow[],
-  barcodeField: string | undefined,
-  sizeField: string | undefined,
+  mapping: Pick<FieldMapping, "barcode" | "productNumber" | "color" | "size">,
   sourceIndex: number,
 ): number[] {
-  if (!barcodeField) return [sourceIndex];
+  const sourceRow = rows[sourceIndex];
+  if (!sourceRow) return [sourceIndex];
 
-  const sourceCode = getProductCodeThroughColor(rows[sourceIndex] ?? {}, barcodeField, sizeField);
+  const sourceProductNumber = mapping.productNumber
+    ? sourceRow[mapping.productNumber]?.trim() ?? ""
+    : "";
+  const sourceColor = mapping.color
+    ? sourceRow[mapping.color]?.trim() ?? ""
+    : "";
+
+  if (sourceProductNumber && sourceColor && mapping.productNumber && mapping.color) {
+    return rows.flatMap((row, index) => {
+      const productNumber = row[mapping.productNumber!]?.trim() ?? "";
+      const color = row[mapping.color!]?.trim() ?? "";
+      return productNumber === sourceProductNumber && color === sourceColor ? [index] : [];
+    });
+  }
+
+  if (!mapping.barcode) return [sourceIndex];
+
+  const sourceCode = getProductCodeThroughColor(sourceRow, mapping.barcode, mapping.size);
   if (!sourceCode) return [sourceIndex];
 
   return rows.flatMap((row, index) =>
-    getProductCodeThroughColor(row, barcodeField, sizeField) === sourceCode ? [index] : [],
+    getProductCodeThroughColor(row, mapping.barcode!, mapping.size) === sourceCode ? [index] : [],
   );
 }
 

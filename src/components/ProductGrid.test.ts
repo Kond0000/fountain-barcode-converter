@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createProductColumns,
-  getMatchingProductCodeIndices,
+  createProductGridTemplate,
+  getMatchingPdfImageIndices,
   getProductPage,
   PRODUCT_GRID_PAGE_SIZE,
 } from "./ProductGrid";
@@ -40,6 +41,19 @@ describe("product grid columns", () => {
   it("does not add an empty brand column when brand is unused", () => {
     expect(createProductColumns({ barcode: "商品コード" }).map(({ key }) => key)).toEqual(["barcode"]);
   });
+
+  it("sizes data columns to their content instead of fractional viewport widths", () => {
+    const columns = createProductColumns({
+      barcode: "商品コード",
+      productName: "商品名",
+      color: "カラー",
+      size: "サイズ",
+    });
+    const template = createProductGridTemplate(columns);
+    expect(template).toBe("38px max-content max-content max-content max-content 112px 72px");
+    expect(template).not.toContain("minmax");
+    expect(template).not.toContain("fr");
+  });
 });
 
 describe("product grid pagination", () => {
@@ -75,18 +89,35 @@ describe("product grid PDF images", () => {
   ];
 
   it("finds size variants whose product code matches through the color segment", () => {
-    expect(getMatchingProductCodeIndices(rows, "商品コード", "サイズ", 0)).toEqual([0, 1, 2]);
+    expect(getMatchingPdfImageIndices(rows, { barcode: "商品コード", size: "サイズ" }, 0)).toEqual([0, 1, 2]);
   });
 
   it("keeps a different color in a separate image group", () => {
-    expect(getMatchingProductCodeIndices(rows, "商品コード", "サイズ", 3)).toEqual([3]);
+    expect(getMatchingPdfImageIndices(rows, { barcode: "商品コード", size: "サイズ" }, 3)).toEqual([3]);
   });
 
   it("updates only the source row when its product code is empty", () => {
-    expect(getMatchingProductCodeIndices(rows, "商品コード", "サイズ", 4)).toEqual([4]);
+    expect(getMatchingPdfImageIndices(rows, { barcode: "商品コード", size: "サイズ" }, 4)).toEqual([4]);
   });
 
   it("updates only the source row when no barcode field is mapped", () => {
-    expect(getMatchingProductCodeIndices(rows, undefined, "サイズ", 1)).toEqual([1]);
+    expect(getMatchingPdfImageIndices(rows, { size: "サイズ" }, 1)).toEqual([1]);
+  });
+
+  it("shares an image across rows with the same product number and color", () => {
+    const registeredRows = [
+      { 商品コード: "SYU-00001", グループコード: "27SSTP001A", カラー: "WHITE/PINK/BLACK BORDER", サイズ: "1" },
+      { 商品コード: "SYU-00002", グループコード: "27SSTP001A", カラー: "WHITE/PINK/BLACK BORDER", サイズ: "2" },
+      { 商品コード: "SYU-00003", グループコード: "27SSTP001A", カラー: "WHITE/PINK/BLACK BORDER", サイズ: "3" },
+      { 商品コード: "SYU-00004", グループコード: "27SSTP001A", カラー: "BLACK/PINK", サイズ: "1" },
+      { 商品コード: "SYU-00005", グループコード: "27SSTP001B", カラー: "WHITE/PINK/BLACK BORDER", サイズ: "1" },
+    ];
+
+    expect(getMatchingPdfImageIndices(registeredRows, {
+      barcode: "商品コード",
+      productNumber: "グループコード",
+      color: "カラー",
+      size: "サイズ",
+    }, 0)).toEqual([0, 1, 2]);
   });
 });
