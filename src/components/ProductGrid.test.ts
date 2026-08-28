@@ -7,9 +7,10 @@ import {
 } from "./ProductGrid";
 
 describe("product grid columns", () => {
-  it("shows the brand column when a brand field is mapped", () => {
+  it("shows the item-number and brand columns when their fields are mapped", () => {
     const columns = createProductColumns({
       barcode: "商品コード",
+      productNumber: "グループコード",
       productName: "商品名",
       brand: "ブランド名",
       color: "カラー",
@@ -19,12 +20,17 @@ describe("product grid columns", () => {
 
     expect(columns.map(({ key }) => key)).toEqual([
       "barcode",
+      "productNumber",
       "productName",
       "brand",
       "color",
       "size",
       "price",
     ]);
+    expect(columns.find(({ key }) => key === "productNumber")).toMatchObject({
+      label: "品番",
+      field: "グループコード",
+    });
     expect(columns.find(({ key }) => key === "brand")).toMatchObject({
       label: "ブランド",
       field: "ブランド名",

@@ -42,4 +42,27 @@ describe("ProductGridRow", () => {
     expect(html).toContain("image/png,image/jpeg,image/webp");
     expect(html).toContain("ABC123の一覧PDF画像を選択");
   });
+
+  it("marks the barcode cell as the fixed horizontal-scroll column", () => {
+    const html = renderToStaticMarkup(<ProductGridRow {...baseProps} active={false} />);
+
+    expect(html).toContain("product-column-barcode");
+  });
+
+  it("marks long color text as a wrapping table cell", () => {
+    const html = renderToStaticMarkup(
+      <ProductGridRow
+        {...baseProps}
+        active={false}
+        row={{ ...baseProps.row, カラー: "WHITE/PINK/BLACK BORDER" }}
+        columns={[
+          ...baseProps.columns,
+          { key: "color", label: "カラー", field: "カラー" },
+        ]}
+      />,
+    );
+
+    expect(html).toContain("product-color-cell");
+    expect(html).toContain("WHITE/PINK/BLACK BORDER");
+  });
 });

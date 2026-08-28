@@ -114,7 +114,12 @@ export function ProductGridRow({
             ? formatVariantValue(raw)
             : raw || "—";
         return (
-          <div role="gridcell" className="data-cell" title={raw} key={column.key}>
+          <div
+            role="gridcell"
+            className={`data-cell product-column-${column.key} ${column.key === "color" ? "product-color-cell" : ""}`}
+            title={raw}
+            key={column.key}
+          >
             {content}
           </div>
         );

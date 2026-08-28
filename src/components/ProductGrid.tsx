@@ -65,12 +65,22 @@ type ProductGridProps = {
 export function createProductColumns(mapping: FieldMapping): ProductColumn[] {
   return [
     mapping.barcode && { key: "barcode", label: "バーコード", field: mapping.barcode },
+    mapping.productNumber && { key: "productNumber", label: "品番", field: mapping.productNumber },
     mapping.productName && { key: "productName", label: "商品名", field: mapping.productName },
     mapping.brand && { key: "brand", label: "ブランド", field: mapping.brand },
     mapping.color && { key: "color", label: "カラー", field: mapping.color },
     mapping.size && { key: "size", label: "サイズ", field: mapping.size },
     mapping.price && { key: "price", label: "価格", field: mapping.price, kind: "price" as const },
   ].filter((column): column is ProductColumn => Boolean(column));
+}
+
+export function createProductGridTemplate(columns: ProductColumn[]): string {
+  return [
+    "38px",
+    ...columns.map(() => "max-content"),
+    "112px",
+    "72px",
+  ].join(" ");
 }
 
 export function ProductGrid({
@@ -110,12 +120,7 @@ export function ProductGrid({
       selectPageCheckboxRef.current.indeterminate = someVisibleSelected;
     }
   }, [someVisibleSelected]);
-  const template = [
-    "38px",
-    ...columns.map((column) => column.key === "productName" ? "minmax(180px, 1.5fr)" : "minmax(110px, 1fr)"),
-    "118px",
-    "84px",
-  ].join(" ");
+  const template = createProductGridTemplate(columns);
   const first = filtered.length === 0 ? 0 : (page - 1) * PRODUCT_GRID_PAGE_SIZE + 1;
   const last = Math.min(page * PRODUCT_GRID_PAGE_SIZE, filtered.length);
 
@@ -128,7 +133,12 @@ export function ProductGrid({
         </div>
         <SearchBar value={query} onChange={setQuery} />
       </div>
-      <div className="product-grid-scroll" role="grid" aria-label="商品一覧">
+      <div
+        className="product-grid-scroll"
+        style={{ "--product-columns": template } as CSSProperties}
+        role="grid"
+        aria-label="商品一覧"
+      >
         <div className="product-grid-row header-row" style={{ "--product-columns": template } as CSSProperties} role="row">
           <div role="columnheader" className="checkbox-cell">
             <input
@@ -140,7 +150,15 @@ export function ProductGrid({
               onChange={(event) => onToggleMany(visibleIndices, event.target.checked)}
             />
           </div>
-          {columns.map((column) => <div role="columnheader" key={column.key}>{column.label}</div>)}
+          {columns.map((column) => (
+            <div
+              role="columnheader"
+              className={`product-column-${column.key}`}
+              key={column.key}
+            >
+              {column.label}
+            </div>
+          ))}
           <div role="columnheader">一覧PDF画像</div>
           <div role="columnheader">枚数</div>
         </div>
