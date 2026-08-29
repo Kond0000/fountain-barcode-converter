@@ -7,6 +7,10 @@ private let printURLScheme = "fountain-label-print"
 private let printerSettingsMessageName = "printerSettings"
 private let printJobMessageName = "printJob"
 private let selectedPrinterDefaultsKey = "selectedPrinterName"
+// WKWebViewのIndexedDBはポートを含むオリジン単位で保存されるため、
+// このポートを固定してアプリの再起動・再ビルド後も作業履歴を引き継ぐ。
+private let bundledWebServerPort = NWEndpoint.Port(rawValue: 47_831)!
+private let bundledWebAppURL = URL(string: "http://127.0.0.1:47831/index.html")!
 
 private struct PrintJob: Decodable {
   let version: Int
@@ -64,7 +68,7 @@ private final class BundledWebServer: @unchecked Sendable {
   init(rootDirectory: URL) throws {
     self.rootDirectory = rootDirectory.standardizedFileURL
     let parameters = NWParameters.tcp
-    parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+    parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: bundledWebServerPort)
     listener = try NWListener(using: parameters)
   }
 
@@ -73,9 +77,9 @@ private final class BundledWebServer: @unchecked Sendable {
       guard let self else { return }
       switch state {
       case .ready:
-        guard !reportedReady, let port = listener.port else { return }
+        guard !reportedReady else { return }
         reportedReady = true
-        onReady(.success(URL(string: "http://127.0.0.1:\(port.rawValue)/index.html")!))
+        onReady(.success(bundledWebAppURL))
       case .failed(let error):
         guard !reportedReady else { return }
         reportedReady = true
@@ -240,6 +244,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDe
 
   private func createMainWindow() {
     let configuration = WKWebViewConfiguration()
+    configuration.websiteDataStore = .default()
     configuration.applicationNameForUserAgent = "LABELPRINT-MAC/1.0"
     configuration.userContentController.addScriptMessageHandler(
       self,
