@@ -1,16 +1,12 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
+import { formatBrandName } from "../label/formatBrand";
 import { formatVariantValue } from "../label/formatVariant";
 import { formatProductNumber } from "../label/formatProductNumber";
 import {
   calculateVariantCenterY,
-  calculateVariantColorMaxWidth,
-  calculateVariantSeparatorOffset,
-  calculateVariantSizeTextX,
   fitVariantTextToSingleLine,
-  formatVariantText,
   getVariantColumns,
-  VARIANT_SEPARATOR_GAP_MM,
 } from "../label/layoutVariant";
 import { LABEL_FONT_FAMILY, normalizeSingleLineText } from "../label/fitText";
 import { wrapTextLines } from "../label/wrapText";
@@ -29,6 +25,22 @@ export const BARCODE_TABLE_ITEMS_PER_PAGE =
 export const BARCODE_TABLE_PIXELS_PER_MM = 16;
 export const BARCODE_TABLE_ACCENT_COLOR = "#b8b8b3";
 export const BARCODE_TABLE_VARIANT_PRICE_GAP_MM = 1;
+export const BARCODE_TABLE_BRAND_PRODUCT_GAP_MM = 0.9;
+export const BARCODE_TABLE_PRODUCT_COLOR_GAP_MM = 0.5;
+export const BARCODE_TABLE_COLOR_FONT_SIZE_MM = 1.9;
+export const BARCODE_TABLE_COLOR_FONT_WEIGHT = 700;
+export const BARCODE_TABLE_COLOR_TEXT_COLOR = "#3f3f3f";
+
+export type BarcodeTableSizeLayout =
+  | "image-corner-box"
+  | "editorial-rail"
+  | "corner-badge"
+  | "metadata-row"
+  | "image-footer";
+
+export function getBarcodeTableSizeLayout(): BarcodeTableSizeLayout {
+  return "image-corner-box";
+}
 
 const PAGE_MARGIN_MM = 6;
 const GRID_TOP_MM = 24;
@@ -38,6 +50,8 @@ const CARD_PADDING_MM = 2;
 const CARD_IMAGE_HEIGHT_MM = 28;
 const CARD_BARCODE_AREA_HEIGHT_MM = 11.2;
 const CARD_BARCODE_VALUE_HEIGHT_MM = 3.3;
+const CARD_BARCODE_BOTTOM_PADDING_MM = 1;
+const CARD_BARCODE_VALUE_GAP_MM = 0.6;
 const MAX_PDF_IMAGE_BYTES = 15 * 1024 * 1024;
 const SUPPORTED_PDF_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -83,11 +97,6 @@ export function usesBarcodeTablePlaceholder(entry: BarcodeTableEntry): boolean {
   return !entry.imageFile;
 }
 
-export function formatBarcodeTableVariant(variantParts: string[]): string {
-  const normalizedParts = variantParts.map((part) => part.trim() || "-");
-  return formatVariantText(normalizedParts, "｜") || "-";
-}
-
 export function getBarcodeTableVariantColumns(variantParts: string[]): {
   color: string;
   size: string;
@@ -99,13 +108,18 @@ export function getBarcodeTableVariantColumns(variantParts: string[]): {
   };
 }
 
+export function formatBarcodeTableSizeTag(size: string): string {
+  const value = normalizeSingleLineText(size).trim();
+  return value ? `SIZE ${value}` : "";
+}
+
 export function formatBarcodeTableBrand(brand: string): string {
-  return normalizeSingleLineText(brand).trim() || "FOUNTAIN";
+  return formatBrandName(brand);
 }
 
 export function formatBarcodeTableMetadata(brand: string, productNumber: string): string {
   return [
-    `BRAND / ${formatBarcodeTableBrand(brand)}`,
+    formatBarcodeTableBrand(brand),
     formatProductNumber(productNumber),
   ].filter(Boolean).join(" | ");
 }
@@ -180,6 +194,156 @@ function drawCenteredText(
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(truncateText(context, text, width), left + width / 2, top + height / 2);
+}
+
+function drawSizeFooterBand(
+  context: CanvasRenderingContext2D,
+  size: string,
+  imageLeft: number,
+  imageTop: number,
+  imageWidth: number,
+  imageHeight: number,
+): void {
+  const text = formatBarcodeTableSizeTag(size);
+  if (!text) return;
+
+  const inset = mmToPixels(0.8);
+  const horizontalPadding = mmToPixels(1.2);
+  const width = imageWidth - inset * 2;
+  const height = mmToPixels(5.2);
+  const left = imageLeft + inset;
+  const top = imageTop + imageHeight - inset - height;
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(left, top, width, height);
+  context.strokeStyle = "#111111";
+  context.lineWidth = Math.max(1, mmToPixels(0.22));
+  context.beginPath();
+  context.moveTo(left, top);
+  context.lineTo(left + width, top);
+  context.stroke();
+
+  setFont(context, 2.05, 800);
+  context.fillStyle = "#111111";
+  context.textAlign = "right";
+  context.textBaseline = "middle";
+  context.fillText(
+    truncateText(context, text, width - horizontalPadding * 2),
+    left + width - horizontalPadding,
+    top + height / 2,
+  );
+}
+
+function drawSizeCornerBadge(
+  context: CanvasRenderingContext2D,
+  size: string,
+  cardLeft: number,
+  cardTop: number,
+  cardWidth: number,
+): void {
+  const text = formatBarcodeTableSizeTag(size);
+  if (!text) return;
+
+  const inset = mmToPixels(0.8);
+  const horizontalPadding = mmToPixels(1.1);
+  const minWidth = mmToPixels(10.5);
+  const maxWidth = mmToPixels(17);
+  const height = mmToPixels(6.5);
+  setFont(context, 1.85, 800);
+  const width = Math.min(
+    maxWidth,
+    Math.max(minWidth, context.measureText(text).width + horizontalPadding * 2),
+  );
+  const left = cardLeft + cardWidth - inset - width;
+  const top = cardTop + inset;
+
+  context.strokeStyle = "#111111";
+  context.lineWidth = Math.max(1, mmToPixels(0.25));
+  context.strokeRect(left, top, width, height);
+  context.fillStyle = "#111111";
+  drawCenteredText(
+    context,
+    text,
+    left + horizontalPadding,
+    top,
+    width - horizontalPadding * 2,
+    height,
+  );
+}
+
+function drawSizeEditorialRail(
+  context: CanvasRenderingContext2D,
+  size: string,
+  imageLeft: number,
+  imageTop: number,
+  imageWidth: number,
+  imageHeight: number,
+): void {
+  const text = formatBarcodeTableSizeTag(size);
+  if (!text) return;
+
+  const right = imageLeft + imageWidth - mmToPixels(0.9);
+  const railWidth = mmToPixels(12.5);
+  const railY = imageTop + imageHeight - mmToPixels(5.1);
+  const cornerWidth = mmToPixels(4.8);
+  const cornerY = imageTop + imageHeight - mmToPixels(0.9);
+
+  context.strokeStyle = "#111111";
+  context.lineWidth = Math.max(1, mmToPixels(0.22));
+  context.beginPath();
+  context.moveTo(right - railWidth, railY);
+  context.lineTo(right, railY);
+  context.moveTo(right - cornerWidth, cornerY);
+  context.lineTo(right, cornerY);
+  context.lineTo(right, cornerY - mmToPixels(1.3));
+  context.stroke();
+
+  setFont(context, 2.05, 800);
+  context.fillStyle = "#111111";
+  context.textAlign = "right";
+  context.textBaseline = "middle";
+  context.fillText(
+    truncateText(context, text, railWidth - mmToPixels(0.8)),
+    right - mmToPixels(0.5),
+    railY + mmToPixels(2.2),
+  );
+}
+
+function drawSizeImageCornerBox(
+  context: CanvasRenderingContext2D,
+  size: string,
+  imageLeft: number,
+  imageTop: number,
+  imageWidth: number,
+  imageHeight: number,
+): void {
+  const text = formatBarcodeTableSizeTag(size);
+  if (!text) return;
+
+  const horizontalPadding = mmToPixels(1.1);
+  const minWidth = mmToPixels(12);
+  const maxWidth = mmToPixels(18);
+  const height = mmToPixels(5.4);
+  setFont(context, 2.05, 800);
+  const width = Math.min(
+    maxWidth,
+    Math.max(minWidth, context.measureText(text).width + horizontalPadding * 2),
+  );
+  const left = imageLeft + imageWidth - width;
+  const top = imageTop + imageHeight - height;
+
+  context.strokeStyle = "#111111";
+  context.lineWidth = Math.max(1, mmToPixels(0.22));
+  context.strokeRect(left, top, width, height);
+  context.fillStyle = "#111111";
+  drawCenteredText(
+    context,
+    text,
+    left + horizontalPadding,
+    top,
+    width - horizontalPadding * 2,
+    height,
+  );
 }
 
 function drawProductName(
@@ -533,28 +697,14 @@ async function renderBarcodeTablePage(
       const content = contents[itemIndex];
       const contentLeft = left + cardPadding;
       const contentWidth = cardWidth - cardPadding * 2;
+      const sizeLayout = getBarcodeTableSizeLayout();
       setFont(context, 2.1, 800);
-      const preferredVariantFontSize = mmToPixels(2.1);
+      const preferredVariantFontSize = mmToPixels(BARCODE_TABLE_COLOR_FONT_SIZE_MM);
       const variantLineHeight = mmToPixels(2.7);
       const variantColumns = getBarcodeTableVariantColumns(content.variantParts);
-      const sizeColumnWidth = variantColumns.size
-        ? Math.min(mmToPixels(9), Math.max(context.measureText(variantColumns.size).width, 1))
-        : 0;
-      const variantSeparatorBeforeGap = variantColumns.size
-        ? mmToPixels(VARIANT_SEPARATOR_GAP_MM)
-        : 0;
-      const variantSeparatorAfterGap = variantColumns.size
-        ? mmToPixels(VARIANT_SEPARATOR_GAP_MM)
-        : 0;
-      const colorColumnWidth = calculateVariantColorMaxWidth(
-        contentWidth,
-        sizeColumnWidth,
-        variantSeparatorBeforeGap,
-        variantSeparatorAfterGap,
-      );
       const variantColorLayout = fitVariantTextToSingleLine({
         text: variantColumns.color,
-        maxWidth: colorColumnWidth,
+        maxWidth: contentWidth,
         preferredFontSize: preferredVariantFontSize,
         preferredLineHeight: variantLineHeight,
         measureAtPreferredSize: (value) => context.measureText(value).width,
@@ -571,11 +721,15 @@ async function renderBarcodeTablePage(
       const imageLeft = left + cardPadding;
       const imageTop = top + cardPadding;
       const imageWidth = cardWidth - cardPadding * 2;
+      const sizeTagSlotHeight = sizeLayout === "image-footer" && variantColumns.size
+        ? mmToPixels(6)
+        : 0;
+      const productImageHeight = imageHeight - sizeTagSlotHeight;
       const image = decodedImages[itemIndex];
       if (image) {
-        drawContainedImage(context, image, imageLeft, imageTop, imageWidth, imageHeight);
+        drawContainedImage(context, image, imageLeft, imageTop, imageWidth, productImageHeight);
       } else {
-        drawImagePlaceholder(context, imageLeft, imageTop, imageWidth, imageHeight);
+        drawImagePlaceholder(context, imageLeft, imageTop, imageWidth, productImageHeight);
       }
       context.strokeStyle = "#111111";
       context.lineWidth = Math.max(1, mmToPixels(0.2));
@@ -583,21 +737,66 @@ async function renderBarcodeTablePage(
 
       const badgeWidth = mmToPixels(8.5);
       const badgeHeight = mmToPixels(6.5);
+      const badgeLeft = imageLeft;
+      const badgeTop = imageTop;
       context.strokeStyle = "#111111";
-      context.lineWidth = Math.max(1, mmToPixels(0.25));
-      context.strokeRect(left + mmToPixels(0.8), top + mmToPixels(0.8), badgeWidth, badgeHeight);
+      context.lineWidth = Math.max(1, mmToPixels(0.22));
+      context.strokeRect(badgeLeft, badgeTop, badgeWidth, badgeHeight);
       setFont(context, 2.8, 700);
       context.fillStyle = "#111111";
       drawCenteredText(
         context,
         `#${String(startIndex + itemIndex + 1).padStart(2, "0")}`,
-        left + mmToPixels(0.8),
-        top + mmToPixels(0.8),
+        badgeLeft,
+        badgeTop,
         badgeWidth,
         badgeHeight,
       );
+      if (sizeLayout === "image-footer") {
+        drawSizeFooterBand(context, variantColumns.size, imageLeft, imageTop, imageWidth, imageHeight);
+      } else if (sizeLayout === "corner-badge") {
+        drawSizeCornerBadge(context, variantColumns.size, left, top, cardWidth);
+      } else if (sizeLayout === "editorial-rail") {
+        drawSizeEditorialRail(
+          context,
+          variantColumns.size,
+          imageLeft,
+          imageTop,
+          imageWidth,
+          imageHeight,
+        );
+      } else if (sizeLayout === "image-corner-box") {
+        drawSizeImageCornerBox(
+          context,
+          variantColumns.size,
+          imageLeft,
+          imageTop,
+          imageWidth,
+          imageHeight,
+        );
+      }
 
       const brandTop = imageTop + imageHeight + mmToPixels(0.6);
+      const metadataBaseline = brandTop + mmToPixels(1.25);
+      const metadataSizeText = sizeLayout === "metadata-row"
+        ? formatBarcodeTableSizeTag(variantColumns.size)
+        : "";
+      let metadataWidth = contentWidth;
+      if (metadataSizeText) {
+        const metadataGap = mmToPixels(1.5);
+        const maxSizeWidth = mmToPixels(18);
+        setFont(context, 1.75, 800);
+        const sizeWidth = Math.min(maxSizeWidth, context.measureText(metadataSizeText).width);
+        metadataWidth = Math.max(1, contentWidth - sizeWidth - metadataGap);
+        context.fillStyle = "#111111";
+        context.textAlign = "right";
+        context.textBaseline = "middle";
+        context.fillText(
+          truncateText(context, metadataSizeText, maxSizeWidth),
+          contentLeft + contentWidth,
+          metadataBaseline,
+        );
+      }
       setFont(context, 1.7, 700);
       context.fillStyle = "#585858";
       context.textAlign = "left";
@@ -606,13 +805,15 @@ async function renderBarcodeTablePage(
         truncateText(
           context,
           formatBarcodeTableMetadata(content.brand, content.productNumber),
-          contentWidth,
+          metadataWidth,
         ),
         contentLeft,
-        brandTop + mmToPixels(1.25),
+        metadataBaseline,
       );
 
-      const productNameTop = brandTop + mmToPixels(2.3);
+      const productNameTop = brandTop + mmToPixels(
+        2.3 + BARCODE_TABLE_BRAND_PRODUCT_GAP_MM,
+      );
       setFont(context, 2.45, 800);
       context.fillStyle = "#111111";
       drawProductName(
@@ -624,11 +825,12 @@ async function renderBarcodeTablePage(
         mmToPixels(6.4),
       );
 
-      const variantTop = productNameTop + mmToPixels(6.2);
+      const variantTop = productNameTop + mmToPixels(
+        6.2 + BARCODE_TABLE_PRODUCT_COLOR_GAP_MM,
+      );
       const variantCenterY = calculateVariantCenterY(variantTop, variantLineHeight);
-      context.font = `800 ${variantColorLayout.fontSize}px ${LABEL_FONT_FAMILY}`;
-      const variantColorTextWidth = context.measureText(variantColorLayout.text).width;
-      context.fillStyle = "#111111";
+      context.font = `${BARCODE_TABLE_COLOR_FONT_WEIGHT} ${variantColorLayout.fontSize}px ${LABEL_FONT_FAMILY}`;
+      context.fillStyle = BARCODE_TABLE_COLOR_TEXT_COLOR;
       context.textAlign = "left";
       context.textBaseline = "middle";
       context.fillText(
@@ -636,29 +838,6 @@ async function renderBarcodeTablePage(
         contentLeft,
         variantCenterY,
       );
-
-      if (variantColumns.size) {
-        const variantBlockHeight = variantLineHeight;
-        const separatorX = contentLeft + calculateVariantSeparatorOffset(
-          variantColorTextWidth,
-          colorColumnWidth,
-          variantSeparatorBeforeGap,
-        );
-        context.strokeStyle = "#111111";
-        context.lineWidth = Math.max(1, mmToPixels(0.18));
-        context.beginPath();
-        context.moveTo(separatorX, variantTop + mmToPixels(0.2));
-        context.lineTo(separatorX, variantTop + variantBlockHeight - mmToPixels(0.2));
-        context.stroke();
-        setFont(context, 2.1, 800);
-        context.textAlign = "left";
-        context.textBaseline = "middle";
-        context.fillText(
-          truncateText(context, variantColumns.size, sizeColumnWidth),
-          calculateVariantSizeTextX(separatorX, variantSeparatorAfterGap),
-          variantCenterY,
-        );
-      }
 
       const priceTop = variantTop
         + mmToPixels(2.8)
@@ -673,7 +852,10 @@ async function renderBarcodeTablePage(
         priceTop + mmToPixels(2.1),
       );
 
-      const barcodeValueTop = top + cardHeight - cardPadding - barcodeValueHeight;
+      const barcodeValueTop = top
+        + cardHeight
+        - mmToPixels(CARD_BARCODE_BOTTOM_PADDING_MM)
+        - barcodeValueHeight;
       const barcodeAreaTop = barcodeValueTop - barcodeAreaHeight;
       const barcode = barcodes[itemIndex];
       context.fillStyle = "#ffffff";
@@ -690,7 +872,10 @@ async function renderBarcodeTablePage(
       context.lineTo(left + cardWidth - mmToPixels(1), barcodeAreaTop);
       context.stroke();
       const barcodeX = left + (cardWidth - barcode.width) / 2;
-      const barcodeY = barcodeAreaTop + (barcodeAreaHeight - barcode.height) / 2;
+      const barcodeY = barcodeAreaTop
+        + barcodeAreaHeight
+        - barcode.height
+        - mmToPixels(CARD_BARCODE_VALUE_GAP_MM);
       context.imageSmoothingEnabled = false;
       context.drawImage(barcode, Math.round(barcodeX), Math.round(barcodeY));
 

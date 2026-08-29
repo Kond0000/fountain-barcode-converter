@@ -2,23 +2,28 @@ import { describe, expect, it } from "vitest";
 import { mmToPt } from "../units/mmToPt";
 import {
   BARCODE_TABLE_ACCENT_COLOR,
+  BARCODE_TABLE_BRAND_PRODUCT_GAP_MM,
   BARCODE_TABLE_CARD_COLUMNS,
   BARCODE_TABLE_CARD_ROWS,
+  BARCODE_TABLE_COLOR_FONT_SIZE_MM,
+  BARCODE_TABLE_COLOR_FONT_WEIGHT,
+  BARCODE_TABLE_COLOR_TEXT_COLOR,
   BARCODE_TABLE_ITEMS_PER_PAGE,
   BARCODE_TABLE_PAGE_HEIGHT_MM,
   BARCODE_TABLE_PAGE_WIDTH_MM,
   BARCODE_TABLE_PIXELS_PER_MM,
+  BARCODE_TABLE_PRODUCT_COLOR_GAP_MM,
   BARCODE_TABLE_VARIANT_PRICE_GAP_MM,
   calculateBarcodeTablePageCount,
   createBarcodeTableCardSize,
   createBarcodeTablePageSize,
   formatBarcodeTableBrand,
   formatBarcodeTableMetadata,
+  formatBarcodeTableSizeTag,
+  getBarcodeTableSizeLayout,
   getBarcodeTableVariantColumns,
   getBarcodeTableEntries,
   formatBarcodeTableCodeValue,
-  formatBarcodeTableVariant,
-  normalizeCatalogImageBackgroundPixels,
   usesBarcodeTablePlaceholder,
 } from "./generateBarcodeTable";
 
@@ -50,18 +55,17 @@ describe("barcode card PDF layout", () => {
     expect(BARCODE_TABLE_VARIANT_PRICE_GAP_MM).toBe(1);
   });
 
+  it("creates a clear hierarchy between brand, product name, and color", () => {
+    expect(BARCODE_TABLE_BRAND_PRODUCT_GAP_MM).toBe(0.9);
+    expect(BARCODE_TABLE_PRODUCT_COLOR_GAP_MM).toBe(0.5);
+    expect(BARCODE_TABLE_COLOR_FONT_SIZE_MM).toBe(1.9);
+    expect(BARCODE_TABLE_COLOR_FONT_WEIGHT).toBe(700);
+    expect(BARCODE_TABLE_COLOR_TEXT_COLOR).toBe("#3f3f3f");
+  });
+
   it("renders the catalog page at about 406 dpi", () => {
     expect(BARCODE_TABLE_PIXELS_PER_MM).toBe(16);
     expect(BARCODE_TABLE_PIXELS_PER_MM * 25.4).toBeCloseTo(406.4);
-  });
-
-  it("shows only color and size separated by a full-width bar", () => {
-    expect(formatBarcodeTableVariant(["Brown", "M"]))
-      .toBe("Brown｜M");
-    expect(formatBarcodeTableVariant(["Brown"]))
-      .toBe("Brown");
-    expect(formatBarcodeTableVariant([]))
-      .toBe("-");
   });
 
   it("keeps color and size in separate columns when the color wraps", () => {
@@ -69,6 +73,16 @@ describe("barcode card PDF layout", () => {
       .toEqual({ color: "BLACK / PURPLE_BLACK_BROWN", size: "1" });
     expect(getBarcodeTableVariantColumns(["Brown"]))
       .toEqual({ color: "Brown", size: "" });
+  });
+
+  it("normalizes the size value for the image tag without changing the color", () => {
+    expect(formatBarcodeTableSizeTag("  XL  ")).toBe("SIZE XL");
+    expect(formatBarcodeTableSizeTag("ONE\nSIZE")).toBe("SIZE ONE SIZE");
+    expect(formatBarcodeTableSizeTag("   ")).toBe("");
+  });
+
+  it("uses the aligned image-corner box while retaining the alternate size layouts", () => {
+    expect(getBarcodeTableSizeLayout()).toBe("image-corner-box");
   });
 
   it("uses FOUNTAIN when the brand is empty", () => {
@@ -79,9 +93,9 @@ describe("barcode card PDF layout", () => {
 
   it("places the product number with the product metadata instead of the barcode value", () => {
     expect(formatBarcodeTableMetadata("", "271033"))
-      .toBe("BRAND / FOUNTAIN | 271033");
+      .toBe("FOUNTAIN | 271033");
     expect(formatBarcodeTableMetadata("Kelen", ""))
-      .toBe("BRAND / Kelen");
+      .toBe("Kelen");
   });
 
   it("shows the product code without a CODE prefix", () => {
@@ -118,16 +132,4 @@ describe("barcode card PDF layout", () => {
     expect(usesBarcodeTablePlaceholder({ row: { code: "A" }, copies: 1, imageFile: image })).toBe(false);
   });
 
-  it("turns only edge-connected near-white image backgrounds pure white", () => {
-    const pixels = new Uint8ClampedArray([
-      238, 238, 236, 255, 238, 238, 236, 255, 238, 238, 236, 255,
-      238, 238, 236, 255, 20, 20, 20, 255, 238, 238, 236, 255,
-      238, 238, 236, 255, 238, 238, 236, 255, 238, 238, 236, 255,
-    ]);
-
-    normalizeCatalogImageBackgroundPixels(pixels, 3, 3);
-
-    expect(Array.from(pixels.slice(0, 4))).toEqual([255, 255, 255, 255]);
-    expect(Array.from(pixels.slice(16, 20))).toEqual([20, 20, 20, 255]);
-  });
 });
