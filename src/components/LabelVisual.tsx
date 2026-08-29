@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createCode128CanvasForPrinter } from "../lib/barcode/generateCode128";
 import { formatPrice } from "../lib/format";
 import { LABEL_FONT_FAMILY } from "../lib/label/fitText";
+import { formatBrandName } from "../lib/label/formatBrand";
 import { formatVariantValue } from "../lib/label/formatVariant";
 import { formatProductNumber } from "../lib/label/formatProductNumber";
 import { shouldStackDetailsRow } from "../lib/label/layoutDetailsRow";
@@ -58,7 +59,7 @@ export function LabelVisual({
   const [barcodeDisplaySize, setBarcodeDisplaySize] = useState<{ width: number; height: number } | null>(null);
   const barcodeValue = mapping.barcode ? row[mapping.barcode] ?? "" : "";
   const productNumber = formatProductNumber(mapping.productNumber ? row[mapping.productNumber] : "");
-  const brand = mapping.brand ? row[mapping.brand] ?? "" : "";
+  const brand = mapping.brand ? formatBrandName(row[mapping.brand] ?? "") : "";
   const productName = mapping.productName ? row[mapping.productName] ?? "" : "";
   const price = mapping.price ? formatPrice(row[mapping.price] ?? "") : "";
   const color = mapping.color ? formatVariantValue(row[mapping.color]) : "";
@@ -235,11 +236,14 @@ export function LabelVisual({
         width: `${previewWidth}px`,
       }}
     >
-      {productName || productNumber || variant || price ? (
+      {brand || productName || productNumber || variant || price ? (
         <div
           className="preview-content-group preview-product-group"
           style={{ gap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px` }}
         >
+          {brand ? (
+            <span className="preview-brand" style={textStyle(LABEL_LAYOUT_MM.brand.fontSize, LABEL_LAYOUT_MM.brand.lineHeight)}>{brand}</span>
+          ) : null}
           {productName ? (
             <strong
               className="preview-name"
@@ -322,11 +326,6 @@ export function LabelVisual({
         {barcodeError ? <span className="preview-error">{barcodeError}</span> : null}
         {barcodeValue ? <span className="preview-code" style={textStyle(LABEL_LAYOUT_MM.barcodeValue.fontSize, LABEL_LAYOUT_MM.barcodeValue.lineHeight)}>{barcodeValue}</span> : null}
       </div>
-      {brand ? (
-        <div className="preview-content-group preview-brand-group">
-          <span className="preview-brand" style={textStyle(LABEL_LAYOUT_MM.brand.fontSize, LABEL_LAYOUT_MM.brand.lineHeight)}>{brand}</span>
-        </div>
-      ) : null}
     </div>
   );
 }

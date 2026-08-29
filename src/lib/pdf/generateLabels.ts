@@ -1,6 +1,7 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
 import { fitTextToSingleLine, LABEL_FONT_FAMILY } from "../label/fitText";
+import { formatBrandName } from "../label/formatBrand";
 import { formatVariantValue } from "../label/formatVariant";
 import { formatProductNumber } from "../label/formatProductNumber";
 import { shouldStackDetailsRow } from "../label/layoutDetailsRow";
@@ -172,7 +173,7 @@ function resolveContent(row: CsvRow, elements: LabelElement[]) {
 }
 
 type TextLayoutStyle = { fontSize: number; minFontSize?: number; lineHeight: number; weight: number };
-type LayoutSection = "product" | "barcode" | "footer";
+type LayoutSection = "product" | "barcode";
 type TextAlignment = "left" | "center" | "right";
 type TextLayoutItem = {
   type: "text";
@@ -520,6 +521,13 @@ async function renderLabelSourceCanvas(
     const item = createTextLayoutItem(measureContext, text, style, section, maxWidth, alignment);
     if (item) items.push(item);
   };
+  const hasBrandElement = elements.some((element) => element.type === "text" && element.role === "brand");
+  addText(
+    hasBrandElement ? formatBrandName(content.brand) : "",
+    LABEL_LAYOUT_MM.brand,
+    "product",
+    "left",
+  );
   const productNameItem = createProductNameLayoutItem(measureContext, content.productName, maxWidth);
   if (productNameItem) items.push(productNameItem);
   addText(formatProductNumber(content.productNumber), LABEL_LAYOUT_MM.productNumber, "product", "left");
@@ -527,7 +535,6 @@ async function renderLabelSourceCanvas(
   if (detailsItem) items.push(detailsItem);
   items.push({ type: "barcode", section: "barcode", canvas: barcodeCanvas, width: barcodeWidth, height: barcodeHeight });
   addText(content.barcodeValue || content.barcode, LABEL_LAYOUT_MM.barcodeValue, "barcode");
-  addText(content.brand, LABEL_LAYOUT_MM.brand, "footer");
 
   const contentHeight = items.reduce((total, item, index) => {
     const next = items[index + 1];

@@ -330,7 +330,7 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .preview-variant-size { align-self: stretch; display: grid; flex: 0 0 auto; box-sizing: border-box; place-items: center start; border-left: 1px solid currentColor; white-space: nowrap; }
 .preview-price { font-weight: 600; text-align: right; white-space: nowrap; }
 .preview-details-row.is-stacked .preview-price { grid-column: 1; justify-self: end; }
-.preview-brand { font-weight: 600; letter-spacing: 0.04em; text-align: center; }
+.preview-brand { font-weight: 600; letter-spacing: 0.04em; text-align: left; }
 .preview-barcode-group { align-items: center; text-align: center; }
 .preview-barcode { display: block; width: auto; max-width: 100%; height: auto; object-fit: contain; image-rendering: auto; flex: 0 0 auto; }
 .preview-barcode.has-error { display: none; }
