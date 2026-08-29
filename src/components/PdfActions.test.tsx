@@ -9,6 +9,7 @@ const BASE_PROPS = {
   disabled: false,
   downloads: [],
   loading: false,
+  previewLoading: false,
   macAvailable: true,
   runningInMacApp: true,
   macLoading: false,
@@ -16,6 +17,7 @@ const BASE_PROPS = {
   pdfTitle: "秋冬商品一覧",
   onPdfTitleChange: vi.fn(),
   onGenerate: vi.fn(),
+  onPreview: vi.fn(),
   onMacPrint: vi.fn(),
 };
 
@@ -76,5 +78,15 @@ describe("PdfActions printer readiness", () => {
     expect(html).toContain('download="catalog.zip"');
     expect(html).not.toContain("ラベルPDF</a>");
     expect(html).not.toContain("一覧PDF</a>");
+    expect(html).toContain("PDFを確認");
+  });
+
+  it("offers a PDF preview before saving the ZIP", () => {
+    const html = renderToStaticMarkup(
+      <PdfActions {...BASE_PROPS} macPrintReady />,
+    );
+
+    expect(html).toContain("PDFを確認");
+    expect(html).toContain("PDFをZIPで保存");
   });
 });

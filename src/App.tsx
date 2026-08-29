@@ -5,10 +5,20 @@ import { LabelPreview } from "./components/LabelPreview";
 import { LabelPreviewModal } from "./components/LabelPreviewModal";
 import { LabelSettingsPanel } from "./components/LabelSettings";
 import { PdfActions } from "./components/PdfActions";
+import { PdfPreviewDialog, type PdfPreviewDocument } from "./components/PdfPreviewDialog";
 import { PrinterSettingsPanel } from "./components/PrinterSettings";
 import { ProductGrid, getMatchingPdfImageIndices } from "./components/ProductGrid";
+import { SettingsDialog } from "./components/SettingsDialog";
+import { WorkHistoryDialog } from "./components/WorkHistoryDialog";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
+import {
+  deleteWorkHistory,
+  listWorkHistory,
+  loadWorkHistory,
+  saveWorkHistory,
+  type WorkHistorySummary,
+} from "./lib/history/workHistory";
 import { generateBarcodeTablePdf } from "./lib/pdf/generateBarcodeTable";
 import {
   DEFAULT_PDF_TITLE_BASE,
@@ -16,6 +26,7 @@ import {
 } from "./lib/pdf/createPdfTitles";
 import {
   calculateLabelPageCount,
+  createPdfDownload,
   generateDirectPrintPages,
   generateLabelsPdf,
   validateLabelSettings,
@@ -60,14 +71,23 @@ export default function App() {
   const [settings, setSettings] = useState<LabelSettings>(DEFAULT_LABEL_SETTINGS);
   const [loadingCsv, setLoadingCsv] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generatingPreview, setGeneratingPreview] = useState(false);
   const [printingMac, setPrintingMac] = useState(false);
   const [printerReadiness, setPrinterReadiness] = useState<MacPrinterReadiness | null>(null);
   const [pdfDownloads, setPdfDownloads] = useState<PdfDownload[]>([]);
+  const [pdfPreviews, setPdfPreviews] = useState<PdfPreviewDocument[]>([]);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [pdfTitle, setPdfTitle] = useState(DEFAULT_PDF_TITLE_BASE);
   const [previewListOpen, setPreviewListOpen] = useState(false);
+  const [openTool, setOpenTool] = useState<"mapping" | "label" | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string>();
+  const [histories, setHistories] = useState<WorkHistorySummary[]>([]);
   const [macAvailable] = useState(isMacOs);
   const [runningInMacApp] = useState(isMacPrintApp);
   const printInFlightRef = useRef(false);
+  const restoringHistoryRef = useRef(false);
   const [message, setMessage] = useState<(
     UserFacingMessage & { tone: "error" | "warning" | "success" }
   ) | null>(null);
@@ -76,8 +96,18 @@ export default function App() {
     pdfDownloads.forEach((download) => URL.revokeObjectURL(download.url));
   }, [pdfDownloads]);
 
+  useEffect(() => () => {
+    pdfPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, [pdfPreviews]);
+
   useEffect(() => {
     setPdfDownloads([]);
+    setPdfPreviews([]);
+    setPdfPreviewOpen(false);
+    if (restoringHistoryRef.current) {
+      restoringHistoryRef.current = false;
+      return;
+    }
     setMessage((current) => current?.tone === "success" ? null : current);
   }, [csvData, mapping, rowStates, settings, pdfTitle]);
 
@@ -86,11 +116,13 @@ export default function App() {
     setMessage(null);
     try {
       const parsed = await parseCsvFile(file);
+      const detectedMapping = detectFields(parsed.headers);
       setCsvData(parsed);
-      setMapping(detectFields(parsed.headers));
+      setMapping(detectedMapping);
       setRowStates(parsed.rows.map(() => ({ selected: true, copies: 1 })));
       setActiveRowIndex(0);
       setPreviewListOpen(false);
+      setOpenTool(detectedMapping.barcode ? null : "mapping");
       if (parsed.warnings.length > 0) {
         setMessage({
           tone: "warning",
@@ -122,7 +154,118 @@ export default function App() {
   );
   const totalPages = calculateLabelPageCount(selectedEntries);
 
+  const createCurrentPdfs = async () => {
+    const elements = createDefaultLabelElements(mapping);
+    const pdfTitles = createPdfTitles(pdfTitle);
+    const [labelBytes, tableBytes] = await Promise.all([
+      generateLabelsPdf(selectedEntries, elements, settings),
+      generateBarcodeTablePdf(selectedEntries, elements, pdfTitles.pageTitle),
+    ]);
+    return { labelBytes, tableBytes, pdfTitles };
+  };
+
+  const setCurrentPdfPreviews = (
+    labelBytes: Uint8Array,
+    tableBytes: Uint8Array,
+    pdfTitles: ReturnType<typeof createPdfTitles>,
+  ) => {
+    setPdfPreviews([
+      {
+        id: "labels",
+        label: "ラベルPDF",
+        ...createPdfDownload(labelBytes, pdfTitles.labelsFileName),
+      },
+      {
+        id: "table",
+        label: "一覧PDF",
+        ...createPdfDownload(tableBytes, pdfTitles.tableFileName),
+      },
+    ]);
+  };
+
+  const handleOpenHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryError(undefined);
+    try {
+      setHistories(await listWorkHistory());
+    } catch {
+      setHistories([]);
+      setHistoryError("この端末の作業履歴を読み込めませんでした。アプリを再起動して、もう一度お試しください。");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleRestoreHistory = async (history: WorkHistorySummary) => {
+    setHistoryLoading(true);
+    setHistoryError(undefined);
+    try {
+      const restored = await loadWorkHistory(history.id);
+      restoringHistoryRef.current = true;
+      setCsvData(restored.csvData);
+      setMapping(restored.mapping);
+      setRowStates(restored.rowStates);
+      setSettings(restored.settings);
+      setPdfTitle(restored.pdfTitle);
+      setActiveRowIndex(0);
+      setPreviewListOpen(false);
+      setOpenTool(null);
+      setHistoryOpen(false);
+      setMessage({
+        tone: "success",
+        title: "作業履歴を復元しました",
+        detail: `${history.csvFileName} の商品データ・列設定・選択状態・枚数・PDFタイトル・画像を復元しました。`,
+      });
+    } catch {
+      setHistoryError("選択した作業履歴を復元できませんでした。別の履歴を選ぶか、アプリを再起動してください。");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleDeleteHistory = async (history: WorkHistorySummary) => {
+    if (!window.confirm(`「${history.pdfTitle || history.csvFileName}」の作業履歴を削除しますか？`)) return;
+    setHistoryLoading(true);
+    setHistoryError(undefined);
+    try {
+      await deleteWorkHistory(history.id);
+      setHistories(await listWorkHistory());
+    } catch {
+      setHistoryError("作業履歴を削除できませんでした。アプリを再起動して、もう一度お試しください。");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handlePreviewPdf = async () => {
+    if (pdfPreviews.length > 0) {
+      setPdfPreviewOpen(true);
+      return;
+    }
+    if (!mapping.barcode) {
+      setMessage({
+        tone: "error",
+        title: "バーコード列が設定されていません",
+        detail: "「ラベルデータ設定」のバーコード欄で、商品コードが入っているCSV列を選択してください。",
+      });
+      return;
+    }
+    setGeneratingPreview(true);
+    setMessage(null);
+    try {
+      const { labelBytes, tableBytes, pdfTitles } = await createCurrentPdfs();
+      setCurrentPdfPreviews(labelBytes, tableBytes, pdfTitles);
+      setPdfPreviewOpen(true);
+    } catch (error) {
+      setMessage({ tone: "error", ...explainPdfGenerationError(error) });
+    } finally {
+      setGeneratingPreview(false);
+    }
+  };
+
   const handleGenerate = async () => {
+    if (!csvData) return;
     if (!mapping.barcode) {
       setMessage({
         tone: "error",
@@ -134,22 +277,23 @@ export default function App() {
     setGenerating(true);
     setMessage(null);
     try {
-      const elements = createDefaultLabelElements(mapping);
-      const pdfTitles = createPdfTitles(pdfTitle);
-      const [labelBytes, tableBytes] = await Promise.all([
-        generateLabelsPdf(selectedEntries, elements, settings),
-        generateBarcodeTablePdf(selectedEntries, elements, pdfTitles.pageTitle),
-      ]);
+      const { labelBytes, tableBytes, pdfTitles } = await createCurrentPdfs();
       const archiveBytes = createStoredZip([
         { fileName: pdfTitles.labelsFileName, bytes: labelBytes },
         { fileName: pdfTitles.tableFileName, bytes: tableBytes },
       ]);
       setPdfDownloads([createZipDownload(archiveBytes, pdfTitles.archiveFileName)]);
       startMacPrintBundleDownload(archiveBytes, pdfTitles.archiveFileName);
+      let historyDetail = "この作業は端末内の作業履歴にも保存されました。";
+      try {
+        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle });
+      } catch {
+        historyDetail = "PDFは保存できましたが、端末内の作業履歴には保存できませんでした。";
+      }
       setMessage({
         tone: "success",
         title: "PDFをZIPで保存しました",
-        detail: `${totalPages}ページのラベルPDFと、${selectedEntries.length}商品のバーコード一覧PDFを1つのZIPにまとめました。保存されない場合は画面下部のボタンから保存してください。`,
+        detail: `${totalPages}ページのラベルPDFと、${selectedEntries.length}商品のバーコード一覧PDFを1つのZIPにまとめました。${historyDetail} 保存されない場合は画面下部のボタンから保存してください。`,
       });
     } catch (error) {
       setMessage({ tone: "error", ...explainPdfGenerationError(error) });
@@ -229,6 +373,17 @@ export default function App() {
     }
   };
 
+  const statusMessage = message ? (
+    <div
+      className={`status-message is-${message.tone}`}
+      role={message.tone === "error" ? "alert" : "status"}
+      aria-live={message.tone === "error" ? "assertive" : "polite"}
+    >
+      <strong>{message.title}</strong>
+      <span>{message.detail}</span>
+    </div>
+  ) : null;
+
   return (
     <div className={`app-shell ${csvData ? "has-data" : ""}`}>
       <header className={`app-header ${runningInMacApp ? "has-printer-settings" : ""}`}>
@@ -241,20 +396,53 @@ export default function App() {
         </div>
       </header>
       <main className={`app-grid ${csvData ? "has-data" : "is-empty"}`}>
-        <CsvDropzone csvData={csvData} loading={loadingCsv} onFile={handleFile} />
-        {message ? (
-          <div
-            className={`status-message is-${message.tone}`}
-            role={message.tone === "error" ? "alert" : "status"}
-            aria-live={message.tone === "error" ? "assertive" : "polite"}
-          >
-            <strong>{message.title}</strong>
-            <span>{message.detail}</span>
-          </div>
-        ) : null}
         {csvData ? (
           <>
-            <FieldMappingPanel headers={csvData.headers} mapping={mapping} onChange={updateMapping} />
+            <section className="workspace-control-card" aria-label="読み込みファイルと設定">
+              <CsvDropzone csvData={csvData} loading={loadingCsv} onFile={handleFile} onOpenHistory={handleOpenHistory} />
+              {statusMessage}
+              <section className={`workspace-tools ${openTool ? "is-open" : ""}`} aria-label="データとラベルの設定">
+                <header className="workspace-tools-bar">
+                  <div className="workspace-tools-heading">
+                    <strong>データ・ラベル設定</strong>
+                    <span>
+                      {mapping.barcode ? `バーコード：${mapping.barcode}` : "バーコード列が未設定です"}
+                      ・横幅 {settings.widthMm} mm
+                    </span>
+                  </div>
+                  <div className="workspace-tools-actions">
+                    <button
+                      className={`workspace-tools-button ${openTool === "mapping" ? "is-active" : ""}`}
+                      type="button"
+                      aria-expanded={openTool === "mapping"}
+                      aria-haspopup="dialog"
+                      aria-controls="settings-dialog"
+                      onClick={() => setOpenTool((current) => current === "mapping" ? null : "mapping")}
+                    >
+                      {openTool === "mapping" ? "列設定を閉じる" : "列設定"}
+                    </button>
+                    <button
+                      className="label-list-quick-button"
+                      type="button"
+                      disabled={selectedEntries.length === 0}
+                      onClick={() => setPreviewListOpen(true)}
+                    >
+                      ラベル一覧（{selectedEntries.length}）
+                    </button>
+                    <button
+                      className={`label-tools-toggle ${openTool === "label" ? "is-active" : ""}`}
+                      type="button"
+                      aria-expanded={openTool === "label"}
+                      aria-haspopup="dialog"
+                      aria-controls="settings-dialog"
+                      onClick={() => setOpenTool((current) => current === "label" ? null : "label")}
+                    >
+                      {openTool === "label" ? "ラベル設定を閉じる" : "ラベル設定"}
+                    </button>
+                  </div>
+                </header>
+              </section>
+            </section>
             <ProductGrid
               rows={csvData.rows}
               rowStates={rowStates}
@@ -287,27 +475,45 @@ export default function App() {
             />
           </>
         ) : (
-          <section className="getting-started">
-            <h2>CSVの列構成は自由です</h2>
-            <p>ヘッダーを自動解析し、バーコード・商品名・価格などへ割り当てます。</p>
-            <p className="getting-started-note">データは外部へ送信されません。</p>
-          </section>
+          <>
+            <CsvDropzone csvData={csvData} loading={loadingCsv} onFile={handleFile} onOpenHistory={handleOpenHistory} />
+            {statusMessage}
+            <section className="getting-started">
+              <h2>CSVの列構成は自由です</h2>
+              <p>ヘッダーを自動解析し、バーコード・商品名・価格などへ割り当てます。</p>
+              <p className="getting-started-note">データは外部へ送信されません。</p>
+            </section>
+          </>
         )}
       </main>
       {csvData ? (
-        <aside className="right-rail" aria-label="ラベル設定とプレビュー">
-          <LabelSettingsPanel settings={settings} onChange={setSettings} />
-          <LabelPreview
-            row={csvData.rows[activeRowIndex]}
-            mapping={mapping}
-            settings={settings}
-            selectedCount={selectedEntries.length}
-            onOpenList={() => setPreviewListOpen(true)}
-          />
-        </aside>
-      ) : null}
-      {csvData ? (
         <>
+          <SettingsDialog
+            open={Boolean(openTool)}
+            title={openTool === "mapping" ? "CSV列設定" : "ラベル設定"}
+            description={openTool === "mapping"
+              ? "CSVの各列を、ラベルと一覧PDFで使用する項目へ割り当てます。"
+              : "用紙幅と余白を調整し、必要な場合だけバーコードを確認します。"}
+            onClose={() => setOpenTool(null)}
+          >
+            {openTool === "mapping" ? (
+              <div className="mapping-tools-content">
+                <FieldMappingPanel headers={csvData.headers} mapping={mapping} onChange={updateMapping} />
+              </div>
+            ) : null}
+            {openTool === "label" ? (
+              <div className="label-tools-content">
+                <LabelSettingsPanel settings={settings} onChange={setSettings} />
+                <LabelPreview
+                  row={csvData.rows[activeRowIndex]}
+                  mapping={mapping}
+                  settings={settings}
+                  selectedCount={selectedEntries.length}
+                  onOpenList={() => setPreviewListOpen(true)}
+                />
+              </div>
+            ) : null}
+          </SettingsDialog>
           <LabelPreviewModal
             open={previewListOpen}
             entries={selectedEntries}
@@ -322,6 +528,7 @@ export default function App() {
             disabled={!mapping.barcode || totalPages === 0}
             downloads={pdfDownloads}
             loading={generating}
+            previewLoading={generatingPreview}
             macAvailable={macAvailable}
             runningInMacApp={runningInMacApp}
             macLoading={printingMac}
@@ -331,10 +538,29 @@ export default function App() {
             pdfTitle={pdfTitle}
             onPdfTitleChange={setPdfTitle}
             onGenerate={handleGenerate}
+            onPreview={handlePreviewPdf}
             onMacPrint={handleMacPrint}
           />
         </>
       ) : null}
+      <WorkHistoryDialog
+        open={historyOpen}
+        loading={historyLoading}
+        error={historyError}
+        histories={histories}
+        onClose={() => setHistoryOpen(false)}
+        onRestore={handleRestoreHistory}
+        onDelete={handleDeleteHistory}
+      />
+      <PdfPreviewDialog
+        key={pdfPreviews[0]?.url ?? "empty-pdf-preview"}
+        open={pdfPreviewOpen}
+        documents={pdfPreviews}
+        onClose={() => {
+          setPdfPreviewOpen(false);
+          setPdfPreviews([]);
+        }}
+      />
     </div>
   );
 }

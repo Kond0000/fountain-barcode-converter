@@ -6,9 +6,10 @@ type CsvDropzoneProps = {
   csvData: CsvData | null;
   loading: boolean;
   onFile: (file: File) => void;
+  onOpenHistory: () => void;
 };
 
-export function CsvDropzone({ csvData, loading, onFile }: CsvDropzoneProps) {
+export function CsvDropzone({ csvData, loading, onFile, onOpenHistory }: CsvDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const acceptFile = (file?: File) => { if (file) onFile(file); };
@@ -47,18 +48,28 @@ export function CsvDropzone({ csvData, loading, onFile }: CsvDropzoneProps) {
               <span className="success-copy">正常に読み込みました</span>
             </div>
           </div>
-          <button className="secondary-button replace-button" type="button" onClick={() => inputRef.current?.click()} disabled={loading}>
-            ファイルを置き換える
-          </button>
+          <div className="loaded-file-actions">
+            <button className="secondary-button history-button" type="button" onClick={onOpenHistory} disabled={loading}>
+              作業履歴
+            </button>
+            <button className="secondary-button replace-button" type="button" onClick={() => inputRef.current?.click()} disabled={loading}>
+              ファイルを置き換える
+            </button>
+          </div>
         </>
       ) : (
-        <button className="empty-dropzone-button" type="button" onClick={() => inputRef.current?.click()} disabled={loading}>
-          <UploadIcon />
-          <span>
-            <strong>{loading ? "CSVを読み込み中…" : "CSVファイルをドロップ"}</strong>
-            <small>またはクリックしてファイルを選択</small>
-          </span>
-        </button>
+        <div className="empty-dropzone-content">
+          <button className="empty-dropzone-button" type="button" onClick={() => inputRef.current?.click()} disabled={loading}>
+            <UploadIcon />
+            <span>
+              <strong>{loading ? "CSVを読み込み中…" : "CSVファイルをドロップ"}</strong>
+              <small>またはクリックしてファイルを選択</small>
+            </span>
+          </button>
+          <button className="empty-history-button" type="button" onClick={onOpenHistory} disabled={loading}>
+            過去の作業を開く
+          </button>
+        </div>
       )}
     </section>
   );

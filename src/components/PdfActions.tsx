@@ -8,6 +8,7 @@ type PdfActionsProps = {
   disabled: boolean;
   downloads: PdfDownload[];
   loading: boolean;
+  previewLoading: boolean;
   macAvailable: boolean;
   runningInMacApp: boolean;
   macLoading: boolean;
@@ -17,6 +18,7 @@ type PdfActionsProps = {
   pdfTitle: string;
   onPdfTitleChange: (value: string) => void;
   onGenerate: () => void;
+  onPreview: () => void;
   onMacPrint: () => void;
 };
 
@@ -27,6 +29,7 @@ export function PdfActions({
   disabled,
   downloads,
   loading,
+  previewLoading,
   macAvailable,
   runningInMacApp,
   macLoading,
@@ -36,9 +39,10 @@ export function PdfActions({
   pdfTitle,
   onPdfTitleChange,
   onGenerate,
+  onPreview,
   onMacPrint,
 }: PdfActionsProps) {
-  const busy = loading || macLoading;
+  const busy = loading || previewLoading || macLoading;
   return (
     <footer className="pdf-actions">
       <div className="pdf-actions-inner">
@@ -67,10 +71,16 @@ export function PdfActions({
             ) : downloads.length > 0 ? (
               <>
                 <a className="save-pdf-button download-button" href={downloads[0].url} download={downloads[0].fileName}>PDF ZIPを保存</a>
+                <button className="preview-pdf-button" type="button" disabled={busy} onClick={onPreview}>PDFを確認</button>
                 <button className="regenerate-button" type="button" disabled={disabled || busy} onClick={onGenerate}>再作成</button>
               </>
             ) : (
-              <button className="save-pdf-button" type="button" disabled={disabled || busy} onClick={onGenerate}>PDFをZIPで保存</button>
+              <>
+                <button className="preview-pdf-button" type="button" disabled={disabled || busy} onClick={onPreview}>
+                  {previewLoading ? "PDF作成中…" : "PDFを確認"}
+                </button>
+                <button className="save-pdf-button" type="button" disabled={disabled || busy} onClick={onGenerate}>PDFをZIPで保存</button>
+              </>
             )}
           </div>
           <button
