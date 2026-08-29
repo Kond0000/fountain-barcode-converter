@@ -13,6 +13,7 @@ import { WorkHistoryDialog } from "./components/WorkHistoryDialog";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
 import {
+  clearWorkHistory,
   deleteWorkHistory,
   listWorkHistory,
   loadWorkHistory,
@@ -233,6 +234,20 @@ export default function App() {
       setHistories(await listWorkHistory());
     } catch {
       setHistoryError("作業履歴を削除できませんでした。アプリを再起動して、もう一度お試しください。");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleDeleteAllHistory = async () => {
+    if (!window.confirm("すべての作業履歴と保存画像を、この端末から削除しますか？\n保存済みのPDF・ZIPは削除されません。")) return;
+    setHistoryLoading(true);
+    setHistoryError(undefined);
+    try {
+      await clearWorkHistory();
+      setHistories([]);
+    } catch {
+      setHistoryError("作業履歴をすべて削除できませんでした。アプリを再起動して、もう一度お試しください。");
     } finally {
       setHistoryLoading(false);
     }
@@ -551,6 +566,7 @@ export default function App() {
         onClose={() => setHistoryOpen(false)}
         onRestore={handleRestoreHistory}
         onDelete={handleDeleteHistory}
+        onDeleteAll={handleDeleteAllHistory}
       />
       <PdfPreviewDialog
         key={pdfPreviews[0]?.url ?? "empty-pdf-preview"}

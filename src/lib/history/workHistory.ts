@@ -267,3 +267,15 @@ export async function deleteWorkHistory(id: string): Promise<void> {
     database.close();
   }
 }
+
+export function clearWorkHistory(): Promise<void> {
+  if (typeof indexedDB === "undefined") {
+    return Promise.reject(new Error("この環境では端末内の作業履歴を利用できません。"));
+  }
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DATABASE_NAME);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error ?? new Error("作業履歴をすべて削除できませんでした。"));
+    request.onblocked = () => reject(new Error("作業履歴が使用中のため、すべて削除できませんでした。"));
+  });
+}

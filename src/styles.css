@@ -337,6 +337,10 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .work-history-restore:hover { background: var(--accent-deep); }
 .work-history-delete { border: 1px solid var(--border); background: #fff; color: #7b2d28; }
 .work-history-delete:hover { background: #fff0ee; }
+.work-history-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.work-history-footer p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.work-history-footer button { flex: 0 0 auto; min-height: 34px; padding: 6px 11px; border: 1px solid #a85d57; border-radius: 4px; background: #fff; color: #7b2d28; font-size: 11px; font-weight: 700; }
+.work-history-footer button:hover { background: #fff0ee; }
 .mapping-tools-content > .mapping-panel { border: 0; border-radius: 0; }
 .label-tools-content { display: grid; grid-template-columns: minmax(300px, 0.7fr) minmax(520px, 1.3fr); }
 .rail-panel { min-width: 0; padding: 15px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
@@ -500,6 +504,8 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
   .loaded-file-actions .secondary-button { width: 100%; }
   .work-history-list li { grid-template-columns: minmax(0, 1fr); }
   .work-history-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .work-history-footer { align-items: stretch; flex-direction: column; }
+  .work-history-footer button { width: 100%; }
   .pdf-preview-panel { height: 68vh; min-height: 380px; padding: 8px; }
   .pdf-preview-toolbar { align-items: stretch; flex-direction: column; gap: 7px; }
   .pdf-preview-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }

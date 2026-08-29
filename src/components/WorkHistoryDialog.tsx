@@ -12,6 +12,7 @@ type WorkHistoryDialogProps = {
   open: boolean;
   onClose: () => void;
   onDelete: (history: WorkHistorySummary) => void;
+  onDeleteAll: () => void;
   onRestore: (history: WorkHistorySummary) => void;
 };
 
@@ -30,6 +31,7 @@ export function WorkHistoryDialog({
   open,
   onClose,
   onDelete,
+  onDeleteAll,
   onRestore,
 }: WorkHistoryDialogProps) {
   return (
@@ -48,31 +50,37 @@ export function WorkHistoryDialog({
         ) : histories.length === 0 ? (
           <p className="work-history-empty">保存された作業履歴はありません。PDFを作成すると、ここから復元できるようになります。</p>
         ) : (
-          <ol className="work-history-list">
-            {histories.map((history) => (
-              <li key={history.id}>
-                <div className="work-history-copy">
-                  <time dateTime={new Date(history.savedAt).toISOString()}>
-                    {dateTimeFormatter.format(history.savedAt)}
-                  </time>
-                  <strong>{history.pdfTitle || "バーコード一覧"}</strong>
-                  <span>{history.csvFileName}</span>
-                  <small>
-                    {history.rowCount}行・選択 {history.selectedCount}件
-                    {history.imageCount > 0 ? `・画像 ${history.imageCount}点` : "・画像なし"}
-                  </small>
-                </div>
-                <div className="work-history-actions">
-                  <button className="work-history-restore" type="button" onClick={() => onRestore(history)}>
-                    この作業を開く
-                  </button>
-                  <button className="work-history-delete" type="button" onClick={() => onDelete(history)}>
-                    削除
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <>
+            <ol className="work-history-list">
+              {histories.map((history) => (
+                <li key={history.id}>
+                  <div className="work-history-copy">
+                    <time dateTime={new Date(history.savedAt).toISOString()}>
+                      {dateTimeFormatter.format(history.savedAt)}
+                    </time>
+                    <strong>{history.pdfTitle || "バーコード一覧"}</strong>
+                    <span>{history.csvFileName}</span>
+                    <small>
+                      {history.rowCount}行・選択 {history.selectedCount}件
+                      {history.imageCount > 0 ? `・画像 ${history.imageCount}点` : "・画像なし"}
+                    </small>
+                  </div>
+                  <div className="work-history-actions">
+                    <button className="work-history-restore" type="button" onClick={() => onRestore(history)}>
+                      この作業を開く
+                    </button>
+                    <button className="work-history-delete" type="button" onClick={() => onDelete(history)}>
+                      削除
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <footer className="work-history-footer">
+              <p>保存されたCSV情報・設定・商品画像を、この端末からすべて削除します。</p>
+              <button type="button" onClick={onDeleteAll}>すべての履歴を削除</button>
+            </footer>
+          </>
         )}
       </section>
     </SettingsDialog>
