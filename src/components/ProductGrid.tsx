@@ -92,9 +92,16 @@ export function createProductColumns(mapping: FieldMapping): ProductColumn[] {
 }
 
 export function createProductGridTemplate(columns: ProductColumn[]): string {
+  const flexibleTracks: Record<string, string> = {
+    barcode: "minmax(max-content, 1.1fr)",
+    productNumber: "minmax(max-content, 1fr)",
+    productName: "minmax(max-content, 1.8fr)",
+    brand: "minmax(max-content, 1fr)",
+    color: "minmax(max-content, 1fr)",
+  };
   return [
     "38px",
-    ...columns.map(() => "max-content"),
+    ...columns.map(({ key }) => flexibleTracks[key] ?? "max-content"),
     "112px",
     "72px",
   ].join(" ");

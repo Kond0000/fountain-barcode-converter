@@ -42,7 +42,7 @@ describe("product grid columns", () => {
     expect(createProductColumns({ barcode: "商品コード" }).map(({ key }) => key)).toEqual(["barcode"]);
   });
 
-  it("sizes data columns to their content instead of fractional viewport widths", () => {
+  it("fills available width while preserving content-sized minimums", () => {
     const columns = createProductColumns({
       barcode: "商品コード",
       productName: "商品名",
@@ -50,9 +50,7 @@ describe("product grid columns", () => {
       size: "サイズ",
     });
     const template = createProductGridTemplate(columns);
-    expect(template).toBe("38px max-content max-content max-content max-content 112px 72px");
-    expect(template).not.toContain("minmax");
-    expect(template).not.toContain("fr");
+    expect(template).toBe("38px minmax(max-content, 1.1fr) minmax(max-content, 1.8fr) minmax(max-content, 1fr) max-content 112px 72px");
   });
 });
 
