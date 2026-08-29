@@ -457,63 +457,6 @@ function drawImagePlaceholder(
   );
 }
 
-export function normalizeCatalogImageBackgroundPixels(
-  pixels: Uint8ClampedArray,
-  width: number,
-  height: number,
-): void {
-  const pixelCount = width * height;
-  if (pixelCount <= 0 || pixels.length < pixelCount * 4) return;
-
-  const visited = new Uint8Array(pixelCount);
-  const queue = new Int32Array(pixelCount);
-  let queueStart = 0;
-  let queueEnd = 0;
-
-  const isNearWhiteNeutral = (pixelIndex: number) => {
-    const offset = pixelIndex * 4;
-    const red = pixels[offset];
-    const green = pixels[offset + 1];
-    const blue = pixels[offset + 2];
-    const alpha = pixels[offset + 3];
-    return alpha > 0
-      && Math.min(red, green, blue) >= 230
-      && Math.max(red, green, blue) - Math.min(red, green, blue) <= 16;
-  };
-  const enqueue = (pixelIndex: number) => {
-    if (visited[pixelIndex]) return;
-    visited[pixelIndex] = 1;
-    if (!isNearWhiteNeutral(pixelIndex)) return;
-    queue[queueEnd] = pixelIndex;
-    queueEnd += 1;
-  };
-
-  for (let x = 0; x < width; x += 1) {
-    enqueue(x);
-    enqueue((height - 1) * width + x);
-  }
-  for (let y = 1; y < height - 1; y += 1) {
-    enqueue(y * width);
-    enqueue(y * width + width - 1);
-  }
-
-  while (queueStart < queueEnd) {
-    const pixelIndex = queue[queueStart];
-    queueStart += 1;
-    const offset = pixelIndex * 4;
-    pixels[offset] = 255;
-    pixels[offset + 1] = 255;
-    pixels[offset + 2] = 255;
-
-    const x = pixelIndex % width;
-    const y = Math.floor(pixelIndex / width);
-    if (x > 0) enqueue(pixelIndex - 1);
-    if (x + 1 < width) enqueue(pixelIndex + 1);
-    if (y > 0) enqueue(pixelIndex - width);
-    if (y + 1 < height) enqueue(pixelIndex + width);
-  }
-}
-
 function drawContainedImage(
   context: CanvasRenderingContext2D,
   image: DecodedPdfImage,
@@ -527,38 +470,10 @@ function drawContainedImage(
   const scale = Math.min(width / image.width, height / image.height);
   const imageWidth = image.width * scale;
   const imageHeight = image.height * scale;
-  const normalizedCanvas = document.createElement("canvas");
-  normalizedCanvas.width = Math.max(1, Math.round(imageWidth));
-  normalizedCanvas.height = Math.max(1, Math.round(imageHeight));
-  const normalizedContext = normalizedCanvas.getContext("2d", { willReadFrequently: true });
-  if (!normalizedContext) {
-    throw new Error("商品画像の背景を処理できませんでした。");
-  }
-  normalizedContext.imageSmoothingEnabled = true;
-  normalizedContext.imageSmoothingQuality = "high";
-  normalizedContext.drawImage(
-    image.source,
-    0,
-    0,
-    normalizedCanvas.width,
-    normalizedCanvas.height,
-  );
-  const imageData = normalizedContext.getImageData(
-    0,
-    0,
-    normalizedCanvas.width,
-    normalizedCanvas.height,
-  );
-  normalizeCatalogImageBackgroundPixels(
-    imageData.data,
-    normalizedCanvas.width,
-    normalizedCanvas.height,
-  );
-  normalizedContext.putImageData(imageData, 0, 0);
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
   context.drawImage(
-    normalizedCanvas,
+    image.source,
     left + (width - imageWidth) / 2,
     top + (height - imageHeight) / 2,
     imageWidth,
