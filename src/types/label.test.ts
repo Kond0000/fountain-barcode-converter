@@ -24,6 +24,15 @@ describe("label settings", () => {
     ]);
   });
 
+  it("omits the brand from barcode labels when the product name already identifies it", () => {
+    expect(createDefaultLabelElements(
+      { brand: "ブランド", productName: "ブランド名を含む商品名" },
+      { includeBrand: false },
+    )).toEqual([
+      { type: "text", sourceField: "ブランド名を含む商品名", role: "productName" },
+    ]);
+  });
+
   it("keeps the product number as visible text without changing the encoded barcode field", () => {
     expect(createDefaultLabelElements({ barcode: "商品コード", productNumber: "グループコード" })).toEqual([
       { type: "barcode", sourceField: "商品コード", barcodeType: "code128" },
@@ -32,9 +41,23 @@ describe("label settings", () => {
     ]);
   });
 
+  it("keeps a size-only mapping in the size position", () => {
+    expect(createDefaultLabelElements({ size: "サイズ" })).toEqual([
+      { type: "compositeText", sourceFields: ["", "サイズ"], separator: " / ", role: "variant" },
+    ]);
+  });
+
   it("keeps related items closer than separate content groups", () => {
     expect(LABEL_LAYOUT_MM.sectionGap).toBeGreaterThan(LABEL_LAYOUT_MM.itemGap);
     expect(LABEL_LAYOUT_MM.itemGap).toBeGreaterThan(LABEL_LAYOUT_MM.barcodeValueGap);
+  });
+
+  it("uses the same visual level for product number, color, and size", () => {
+    expect(LABEL_LAYOUT_MM.productNumber).toEqual(LABEL_LAYOUT_MM.variant);
+  });
+
+  it("keeps product details together with readable internal spacing", () => {
+    expect(LABEL_LAYOUT_MM.detailsBox.itemGap).toBeGreaterThan(0);
   });
 
   it("keeps product names legible before wrapping after 28 characters", () => {
@@ -44,9 +67,11 @@ describe("label settings", () => {
       LABEL_LAYOUT_MM.variant.fontSize,
     );
     expect(LABEL_LAYOUT_MM.productName.minFontSize).toBeLessThan(LABEL_LAYOUT_MM.productName.fontSize);
+    expect(LABEL_LAYOUT_MM.productName.lineHeight).toBeGreaterThan(4);
   });
 
   it("makes the right-aligned price larger than the variant values", () => {
     expect(LABEL_LAYOUT_MM.price.fontSize).toBeGreaterThan(LABEL_LAYOUT_MM.variant.fontSize);
   });
+
 });

@@ -2,20 +2,10 @@ import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
 import { fitTextToSingleLine, LABEL_FONT_FAMILY } from "../label/fitText";
 import { formatBrandName } from "../label/formatBrand";
+import { formatLabelField } from "../label/formatLabelField";
 import { formatVariantValue } from "../label/formatVariant";
 import { formatProductNumber } from "../label/formatProductNumber";
-import { shouldStackDetailsRow } from "../label/layoutDetailsRow";
 import { layoutProductName } from "../label/layoutProductName";
-import {
-  calculateVariantCenterY,
-  calculateVariantColorMaxWidth,
-  calculateVariantSeparatorOffset,
-  calculateVariantSizeTextX,
-  fitVariantTextToSingleLine,
-  formatVariantText,
-  getVariantColumns,
-  VARIANT_SEPARATOR_GAP_MM,
-} from "../label/layoutVariant";
 import { wrapTextLines } from "../label/wrapText";
 import { MM_PER_INCH, mmToPt, POINTS_PER_INCH } from "../units/mmToPt";
 import type { CsvRow } from "../../types/csv";
@@ -162,7 +152,7 @@ function resolveContent(row: CsvRow, elements: LabelElement[]) {
       content.barcode = row[element.sourceField] ?? "";
     } else if (element.type === "compositeText") {
       content.variantParts = element.sourceFields
-        .map((field) => formatVariantValue(row[field]));
+        .map((field) => field ? formatVariantValue(row[field]) : "");
     } else {
       const value = row[element.sourceField] ?? "";
       if (element.role === "price") content.price = formatPrice(value);
@@ -185,24 +175,11 @@ type TextLayoutItem = {
   weight: number;
   height: number;
 };
-type DetailsLayoutItem = {
-  type: "details";
+type DetailsBoxLayoutItem = {
+  type: "detailsBox";
   section: "product";
-  variantColor: string;
-  variantSize: string;
-  variantSizeWidth: number;
-  variantSeparatorOffset: number;
-  variantSeparatorAfterGap: number;
-  price: string;
-  variantFontSize: number;
-  variantSizeFontSize: number;
-  variantLineHeight: number;
-  variantWeight: number;
-  priceFontSize: number;
-  priceLineHeight: number;
-  priceWeight: number;
-  rowGap: number;
-  stacked: boolean;
+  items: TextLayoutItem[];
+  itemGap: number;
   height: number;
 };
 type BarcodeLayoutItem = {
@@ -212,7 +189,7 @@ type BarcodeLayoutItem = {
   width: number;
   height: number;
 };
-type LayoutItem = TextLayoutItem | DetailsLayoutItem | BarcodeLayoutItem;
+type LayoutItem = TextLayoutItem | DetailsBoxLayoutItem | BarcodeLayoutItem;
 type RenderedLabelEntry = { canvas: HTMLCanvasElement; copies: number };
 
 function roundPrintDimensionMm(value: number): number {
@@ -305,77 +282,27 @@ function createProductNameLayoutItem(
   };
 }
 
-function createDetailsLayoutItem(
+function createDetailsBoxLayoutItem(
   context: CanvasRenderingContext2D,
-  parts: string[],
-  price: string,
+  details: Array<{ text: string; style: TextLayoutStyle }>,
   maxWidth: number,
-): DetailsLayoutItem | null {
-  const variant = formatVariantText(parts);
-  if (!variant && !price) return null;
-  const variantStyle = LABEL_LAYOUT_MM.variant;
-  const priceStyle = LABEL_LAYOUT_MM.price;
-  const preferredVariantFontSize = mmToLabelRenderPixels(variantStyle.fontSize);
-  const variantLineHeight = mmToLabelRenderPixels(variantStyle.lineHeight);
-  const priceFontSize = mmToLabelRenderPixels(priceStyle.fontSize);
-  const priceLineHeight = mmToLabelRenderPixels(priceStyle.lineHeight);
-  const rowGap = mmToLabelRenderPixels(LABEL_LAYOUT_MM.itemGap);
-  const stacked = shouldStackDetailsRow({ variant, price });
-  context.font = `${variantStyle.weight} ${preferredVariantFontSize}px ${LABEL_FONT_FAMILY}`;
-  const variantColumns = getVariantColumns(parts);
-  const variantSeparatorBeforeGap = variantColumns.size
-    ? mmToLabelRenderPixels(VARIANT_SEPARATOR_GAP_MM)
-    : 0;
-  const variantSeparatorAfterGap = variantColumns.size
-    ? mmToLabelRenderPixels(VARIANT_SEPARATOR_GAP_MM)
-    : 0;
-  const variantSizeWidth = variantColumns.size
-    ? Math.max(context.measureText(variantColumns.size).width, 1)
-    : 0;
-  const variantColorWidth = calculateVariantColorMaxWidth(
-    maxWidth,
-    variantSizeWidth,
-    variantSeparatorBeforeGap,
-    variantSeparatorAfterGap,
-  );
-  const variantColorLayout = fitVariantTextToSingleLine({
-    text: variantColumns.color,
-    maxWidth: variantColorWidth,
-    preferredFontSize: preferredVariantFontSize,
-    preferredLineHeight: variantLineHeight,
-    measureAtPreferredSize: (value) => context.measureText(value).width,
+): DetailsBoxLayoutItem | null {
+  const itemGap = mmToLabelRenderPixels(LABEL_LAYOUT_MM.detailsBox.itemGap);
+  const items = details.flatMap(({ text, style }) => {
+    const item = createTextLayoutItem(context, text, style, "product", maxWidth, "left");
+    return item ? [item] : [];
   });
-  const variantHeight = variantColumns.color || variantColumns.size
-    ? variantLineHeight
-    : 0;
-  const fittedVariantFontSize = snapToPrinterDot(variantColorLayout.fontSize);
-  context.font = `${variantStyle.weight} ${fittedVariantFontSize}px ${LABEL_FONT_FAMILY}`;
-  const variantSeparatorOffset = calculateVariantSeparatorOffset(
-    context.measureText(variantColorLayout.text).width,
-    variantColorWidth,
-    variantSeparatorBeforeGap,
-  );
+  if (items.length === 0) return null;
+
   return {
-    type: "details",
+    type: "detailsBox",
     section: "product",
-    variantColor: variantColorLayout.text,
-    variantSize: variantColumns.size,
-    variantSizeWidth,
-    variantSeparatorOffset,
-    variantSeparatorAfterGap,
-    price,
-    variantFontSize: fittedVariantFontSize,
-    variantSizeFontSize: preferredVariantFontSize,
-    variantLineHeight,
-    variantWeight: variantStyle.weight,
-    priceFontSize,
-    priceLineHeight,
-    priceWeight: priceStyle.weight,
-    rowGap,
-    stacked,
-    height: stacked
-      ? variantHeight + rowGap + priceLineHeight
-      : Math.max(variantHeight, priceLineHeight),
+    items,
+    itemGap,
+    height: items.reduce(
+      (total, item, index) => total + item.height + (index > 0 ? itemGap : 0),
+      0,
+    ),
   };
 }
 
@@ -409,61 +336,19 @@ function drawTextLayoutItem(
   });
 }
 
-function drawDetailsLayoutItem(
+function drawDetailsBoxLayoutItem(
   context: CanvasRenderingContext2D,
-  item: DetailsLayoutItem,
+  item: DetailsBoxLayoutItem,
   y: number,
   contentLeft: number,
   contentRight: number,
 ): void {
-  context.textBaseline = "middle";
-  context.fillStyle = "#000000";
-  const variantTop = item.stacked
-    ? y
-    : y + (item.height - item.variantLineHeight) / 2;
-  const variantBlockHeight = item.variantColor || item.variantSize
-    ? item.variantLineHeight
-    : 0;
-  const variantCenterY = calculateVariantCenterY(variantTop, variantBlockHeight);
-  const priceY = item.stacked
-    ? y + variantBlockHeight + item.rowGap + item.priceLineHeight / 2
-    : y + item.height / 2;
-  if (item.variantColor) {
-    context.font = `${item.variantWeight} ${item.variantFontSize}px ${LABEL_FONT_FAMILY}`;
-    context.textAlign = "left";
-    context.fillText(
-      item.variantColor,
-      contentLeft,
-      snapCoordinateToPrinterDot(variantCenterY),
-    );
-  }
-  if (item.variantSize) {
-    const separatorX = contentLeft + item.variantSeparatorOffset;
-    context.strokeStyle = "#000000";
-    context.lineWidth = LABEL_RENDER_SCALE;
-    context.beginPath();
-    context.moveTo(
-      snapCoordinateToPrinterDot(separatorX),
-      snapCoordinateToPrinterDot(variantTop),
-    );
-    context.lineTo(
-      snapCoordinateToPrinterDot(separatorX),
-      snapCoordinateToPrinterDot(variantTop + variantBlockHeight),
-    );
-    context.stroke();
-    context.font = `${item.variantWeight} ${item.variantSizeFontSize}px ${LABEL_FONT_FAMILY}`;
-    context.textAlign = "left";
-    context.fillText(
-      item.variantSize,
-      calculateVariantSizeTextX(separatorX, item.variantSeparatorAfterGap),
-      snapCoordinateToPrinterDot(variantCenterY),
-    );
-  }
-  if (item.price) {
-    context.font = `${item.priceWeight} ${item.priceFontSize}px ${LABEL_FONT_FAMILY}`;
-    context.textAlign = "right";
-    context.fillText(item.price, contentRight, snapCoordinateToPrinterDot(priceY));
-  }
+  let itemY = y;
+  item.items.forEach((detail, index) => {
+    drawTextLayoutItem(context, detail, itemY, contentLeft, contentRight);
+    itemY += detail.height;
+    if (index < item.items.length - 1) itemY += item.itemGap;
+  });
 }
 
 function createPrinterDotCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
@@ -530,11 +415,23 @@ async function renderLabelSourceCanvas(
   );
   const productNameItem = createProductNameLayoutItem(measureContext, content.productName, maxWidth);
   if (productNameItem) items.push(productNameItem);
-  addText(formatProductNumber(content.productNumber), LABEL_LAYOUT_MM.productNumber, "product", "left");
-  const detailsItem = createDetailsLayoutItem(measureContext, content.variantParts, content.price, maxWidth);
-  if (detailsItem) items.push(detailsItem);
+  const [color = "", size = ""] = content.variantParts;
+  const detailsBoxItem = createDetailsBoxLayoutItem(measureContext, [
+    {
+      text: formatLabelField("型番", formatProductNumber(content.productNumber)),
+      style: LABEL_LAYOUT_MM.productNumber,
+    },
+    { text: formatLabelField("カラー", color), style: LABEL_LAYOUT_MM.variant },
+    { text: formatLabelField("サイズ", size), style: LABEL_LAYOUT_MM.variant },
+  ], maxWidth);
+  if (detailsBoxItem) items.push(detailsBoxItem);
+  addText(content.price, LABEL_LAYOUT_MM.price, "product", "right");
   items.push({ type: "barcode", section: "barcode", canvas: barcodeCanvas, width: barcodeWidth, height: barcodeHeight });
-  addText(content.barcodeValue || content.barcode, LABEL_LAYOUT_MM.barcodeValue, "barcode");
+  addText(
+    content.barcodeValue || content.barcode,
+    LABEL_LAYOUT_MM.barcodeValue,
+    "barcode",
+  );
 
   const contentHeight = items.reduce((total, item, index) => {
     const next = items[index + 1];
@@ -550,8 +447,8 @@ async function renderLabelSourceCanvas(
   items.forEach((item, index) => {
     if (item.type === "text") {
       drawTextLayoutItem(context, item, y, horizontalMargin, canvas.width - horizontalMargin);
-    } else if (item.type === "details") {
-      drawDetailsLayoutItem(context, item, y, horizontalMargin, canvas.width - horizontalMargin);
+    } else if (item.type === "detailsBox") {
+      drawDetailsBoxLayoutItem(context, item, y, horizontalMargin, canvas.width - horizontalMargin);
     } else {
       context.imageSmoothingEnabled = false;
       const barcodeX = snapCoordinateToPrinterDot((canvas.width - item.width) / 2);

@@ -2,18 +2,11 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createCode128CanvasForPrinter } from "../lib/barcode/generateCode128";
 import { formatPrice } from "../lib/format";
 import { LABEL_FONT_FAMILY } from "../lib/label/fitText";
-import { formatBrandName } from "../lib/label/formatBrand";
+import { formatLabelField } from "../lib/label/formatLabelField";
 import { formatVariantValue } from "../lib/label/formatVariant";
 import { formatProductNumber } from "../lib/label/formatProductNumber";
-import { shouldStackDetailsRow } from "../lib/label/layoutDetailsRow";
 import { layoutProductName } from "../lib/label/layoutProductName";
-import {
-  calculateVariantColorMaxWidth,
-  fitVariantTextToSingleLine,
-  formatVariantText,
-  getVariantColumns,
-  VARIANT_SEPARATOR_GAP_MM,
-} from "../lib/label/layoutVariant";
+import { fitVariantTextToSingleLine, getVariantColumns } from "../lib/label/layoutVariant";
 import {
   LABEL_RENDER_DPI,
   LABEL_RENDER_PIXELS_PER_MM,
@@ -59,13 +52,15 @@ export function LabelVisual({
   const [barcodeDisplaySize, setBarcodeDisplaySize] = useState<{ width: number; height: number } | null>(null);
   const barcodeValue = mapping.barcode ? row[mapping.barcode] ?? "" : "";
   const productNumber = formatProductNumber(mapping.productNumber ? row[mapping.productNumber] : "");
-  const brand = mapping.brand ? formatBrandName(row[mapping.brand] ?? "") : "";
   const productName = mapping.productName ? row[mapping.productName] ?? "" : "";
   const price = mapping.price ? formatPrice(row[mapping.price] ?? "") : "";
   const color = mapping.color ? formatVariantValue(row[mapping.color]) : "";
   const size = mapping.size ? formatVariantValue(row[mapping.size]) : "";
-  const variant = formatVariantText([color, size].filter(Boolean));
-  const variantColumns = getVariantColumns([color, size]);
+  const productNumberLabel = formatLabelField("型番", productNumber);
+  const colorLabel = formatLabelField("カラー", color);
+  const sizeLabel = formatLabelField("サイズ", size);
+  const variantColumns = getVariantColumns([colorLabel, sizeLabel]);
+  const hasDetailsBox = Boolean(productNumberLabel || variantColumns.color || variantColumns.size);
 
   const safeWidth = Number.isFinite(settings.widthMm) ? Math.max(settings.widthMm, 0) : 0;
   const safeVerticalMargin = Number.isFinite(settings.marginMm) ? Math.max(settings.marginMm, 0) : 0;
@@ -117,8 +112,6 @@ export function LabelVisual({
   const variantLayout = useMemo(() => {
     const preferredFontSize = LABEL_LAYOUT_MM.variant.fontSize * previewScale;
     const preferredLineHeight = LABEL_LAYOUT_MM.variant.lineHeight * previewScale;
-    const separatorBeforeGap = variantColumns.size ? VARIANT_SEPARATOR_GAP_MM * previewScale : 0;
-    const separatorAfterGap = variantColumns.size ? VARIANT_SEPARATOR_GAP_MM * previewScale : 0;
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
     if (!context) {
@@ -129,35 +122,32 @@ export function LabelVisual({
           lineHeight: preferredLineHeight,
           shouldWrap: false,
         },
-        separatorBeforeGap,
-        separatorAfterGap,
-        sizeColumnWidth: variantColumns.size ? 5.8 * previewScale : 0,
+        size: {
+          text: variantColumns.size,
+          fontSize: preferredFontSize,
+          lineHeight: preferredLineHeight,
+          shouldWrap: false,
+        },
       };
     }
     context.font = `${LABEL_LAYOUT_MM.variant.weight} ${preferredFontSize}px ${LABEL_FONT_FAMILY}`;
-    const sizeColumnWidth = variantColumns.size
-      ? Math.max(context.measureText(variantColumns.size).width, 1)
-      : 0;
-    const colorColumnWidth = calculateVariantColorMaxWidth(
-      previewContentWidth,
-      sizeColumnWidth,
-      separatorBeforeGap,
-      separatorAfterGap,
-    );
     return {
       color: fitVariantTextToSingleLine({
         text: variantColumns.color,
-        maxWidth: colorColumnWidth,
+        maxWidth: previewContentWidth,
         preferredFontSize,
         preferredLineHeight,
         measureAtPreferredSize: (value) => context.measureText(value).width,
       }),
-      separatorBeforeGap,
-      separatorAfterGap,
-      sizeColumnWidth,
+      size: fitVariantTextToSingleLine({
+        text: variantColumns.size,
+        maxWidth: previewContentWidth,
+        preferredFontSize,
+        preferredLineHeight,
+        measureAtPreferredSize: (value) => context.measureText(value).width,
+      }),
     };
   }, [previewContentWidth, previewScale, variantColumns.color, variantColumns.size]);
-  const detailsStacked = shouldStackDetailsRow({ variant, price });
 
   useEffect(() => {
     let cancelled = false;
@@ -236,14 +226,11 @@ export function LabelVisual({
         width: `${previewWidth}px`,
       }}
     >
-      {brand || productName || productNumber || variant || price ? (
+      {productName || hasDetailsBox || price ? (
         <div
           className="preview-content-group preview-product-group"
           style={{ gap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px` }}
         >
-          {brand ? (
-            <span className="preview-brand" style={textStyle(LABEL_LAYOUT_MM.brand.fontSize, LABEL_LAYOUT_MM.brand.lineHeight)}>{brand}</span>
-          ) : null}
           {productName ? (
             <strong
               className="preview-name"
@@ -258,56 +245,50 @@ export function LabelVisual({
               ))}
             </strong>
           ) : null}
-          {productNumber ? (
-            <span className="preview-product-number" style={textStyle(LABEL_LAYOUT_MM.productNumber.fontSize, LABEL_LAYOUT_MM.productNumber.lineHeight)}>
-              {productNumber}
-            </span>
-          ) : null}
-          {variant || price ? (
-            <span
-              className={`preview-details-row ${detailsStacked ? "is-stacked" : ""}`}
+          {hasDetailsBox ? (
+            <div
+              className="preview-product-details-box"
               style={{
-                columnGap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px`,
-                rowGap: `${LABEL_LAYOUT_MM.itemGap * previewScale}px`,
+                gap: `${LABEL_LAYOUT_MM.detailsBox.itemGap * previewScale}px`,
               }}
             >
-              {variant ? (
+              {productNumberLabel ? (
                 <span
-                  className="preview-variant-container"
+                  className="preview-product-number"
                   style={{
-                    ...textStyle(LABEL_LAYOUT_MM.variant.fontSize, LABEL_LAYOUT_MM.variant.lineHeight),
-                    height: `${LABEL_LAYOUT_MM.variant.lineHeight * previewScale}px`,
+                    ...textStyle(LABEL_LAYOUT_MM.productNumber.fontSize, LABEL_LAYOUT_MM.productNumber.lineHeight),
+                    fontWeight: LABEL_LAYOUT_MM.productNumber.weight,
                   }}
                 >
-                  <span className="preview-variant-color">
-                    <span
-                      className="preview-variant-line"
-                      style={{
-                        fontSize: `${variantLayout.color.fontSize}px`,
-                        lineHeight: `${variantLayout.color.lineHeight}px`,
-                      }}
-                    >
-                      {variantLayout.color.text}
-                    </span>
-                  </span>
-                  {variantColumns.size ? (
-                    <span
-                      className="preview-variant-size"
-                      style={{
-                        marginLeft: `${variantLayout.separatorBeforeGap}px`,
-                        paddingLeft: `${variantLayout.separatorAfterGap}px`,
-                        width: `${variantLayout.separatorAfterGap + variantLayout.sizeColumnWidth}px`,
-                      }}
-                    >
-                      {variantColumns.size}
-                    </span>
-                  ) : null}
+                  {productNumberLabel}
                 </span>
-              ) : <span />}
-              {price ? (
-                <strong className="preview-price" style={textStyle(LABEL_LAYOUT_MM.price.fontSize, LABEL_LAYOUT_MM.price.lineHeight)}>{price}</strong>
               ) : null}
-            </span>
+              {variantColumns.color ? <span className="preview-variant-color">
+                <span
+                  className="preview-variant-line"
+                  style={{
+                    fontSize: `${variantLayout.color.fontSize}px`,
+                    lineHeight: `${variantLayout.color.lineHeight}px`,
+                  }}
+                >
+                  {variantLayout.color.text}
+                </span>
+              </span> : null}
+              {variantColumns.size ? <span className="preview-variant-size">
+                <span
+                  className="preview-variant-line"
+                  style={{
+                    fontSize: `${variantLayout.size.fontSize}px`,
+                    lineHeight: `${variantLayout.size.lineHeight}px`,
+                  }}
+                >
+                  {variantLayout.size.text}
+                </span>
+              </span> : null}
+            </div>
+          ) : null}
+          {price ? (
+            <strong className="preview-price" style={textStyle(LABEL_LAYOUT_MM.price.fontSize, LABEL_LAYOUT_MM.price.lineHeight)}>{price}</strong>
           ) : null}
         </div>
       ) : null}

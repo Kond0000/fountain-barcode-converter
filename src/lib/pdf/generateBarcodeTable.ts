@@ -1,6 +1,6 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
-import { formatBrandName } from "../label/formatBrand";
+import { formatLabelField } from "../label/formatLabelField";
 import { formatVariantValue } from "../label/formatVariant";
 import { formatProductNumber } from "../label/formatProductNumber";
 import {
@@ -25,7 +25,7 @@ export const BARCODE_TABLE_ITEMS_PER_PAGE =
 export const BARCODE_TABLE_PIXELS_PER_MM = 16;
 export const BARCODE_TABLE_ACCENT_COLOR = "#b8b8b3";
 export const BARCODE_TABLE_VARIANT_PRICE_GAP_MM = 1;
-export const BARCODE_TABLE_BRAND_PRODUCT_GAP_MM = 0.9;
+export const BARCODE_TABLE_METADATA_PRODUCT_GAP_MM = 0.9;
 export const BARCODE_TABLE_PRODUCT_COLOR_GAP_MM = 0.5;
 export const BARCODE_TABLE_COLOR_FONT_SIZE_MM = 1.9;
 export const BARCODE_TABLE_COLOR_FONT_WEIGHT = 700;
@@ -113,15 +113,8 @@ export function formatBarcodeTableSizeTag(size: string): string {
   return value ? `SIZE ${value}` : "";
 }
 
-export function formatBarcodeTableBrand(brand: string): string {
-  return formatBrandName(brand);
-}
-
-export function formatBarcodeTableMetadata(brand: string, productNumber: string): string {
-  return [
-    formatBarcodeTableBrand(brand),
-    formatProductNumber(productNumber),
-  ].filter(Boolean).join(" | ");
+export function formatBarcodeTableMetadata(productNumber: string): string {
+  return formatLabelField("型番", formatProductNumber(productNumber));
 }
 
 export function formatBarcodeTableCodeValue(barcodeValue: string, barcode: string): string {
@@ -130,7 +123,6 @@ export function formatBarcodeTableCodeValue(barcodeValue: string, barcode: strin
 
 function resolveBarcodeTableContent(row: CsvRow, elements: LabelElement[]) {
   const content = {
-    brand: "",
     productName: "",
     variantParts: [] as string[],
     price: "",
@@ -144,11 +136,11 @@ function resolveBarcodeTableContent(row: CsvRow, elements: LabelElement[]) {
       content.barcode = row[element.sourceField] ?? "";
     } else if (element.type === "compositeText") {
       content.variantParts = element.sourceFields
-        .map((field) => formatVariantValue(row[field]));
+        .map((field) => field ? formatVariantValue(row[field]) : "");
     } else {
       const value = row[element.sourceField] ?? "";
       if (element.role === "price") content.price = formatPrice(value);
-      else content[element.role] = value;
+      else if (element.role !== "brand") content[element.role] = value;
     }
   });
   return content;
@@ -719,7 +711,7 @@ async function renderBarcodeTablePage(
       context.fillText(
         truncateText(
           context,
-          formatBarcodeTableMetadata(content.brand, content.productNumber),
+          formatBarcodeTableMetadata(content.productNumber),
           metadataWidth,
         ),
         contentLeft,
@@ -727,7 +719,7 @@ async function renderBarcodeTablePage(
       );
 
       const productNameTop = brandTop + mmToPixels(
-        2.3 + BARCODE_TABLE_BRAND_PRODUCT_GAP_MM,
+        2.3 + BARCODE_TABLE_METADATA_PRODUCT_GAP_MM,
       );
       setFont(context, 2.45, 800);
       context.fillStyle = "#111111";

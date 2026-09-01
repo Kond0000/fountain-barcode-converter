@@ -24,26 +24,36 @@ export function calculateHorizontalMargin(verticalMarginMm: number): number {
 }
 
 export const LABEL_LAYOUT_MM = {
-  itemGap: 0.9,
-  sectionGap: 1.8,
+  itemGap: 1.3,
+  sectionGap: 2.1,
   barcodeValueGap: 0.6,
   brand: { fontSize: 2.5, lineHeight: 3.2, weight: 600 },
-  productName: { fontSize: 3.2, minFontSize: 3, lineHeight: 4, weight: 500 },
+  productName: { fontSize: 3.2, minFontSize: 3, lineHeight: 4.4, weight: 500 },
   variant: { fontSize: 2.8, lineHeight: 3.6, weight: 500 },
   price: { fontSize: 3.8, lineHeight: 4.8, weight: 600 },
   barcodeHeight: 11.5,
   barcodeValue: { fontSize: 2.4, lineHeight: 3, weight: 500 },
-  productNumber: { fontSize: 2.4, lineHeight: 3, weight: 600 },
+  productNumber: { fontSize: 2.8, lineHeight: 3.6, weight: 500 },
+  detailsBox: { itemGap: 0.8 },
 } as const;
 
-export function createDefaultLabelElements(mapping: FieldMapping): LabelElement[] {
+export function createDefaultLabelElements(
+  mapping: FieldMapping,
+  options: { includeBrand?: boolean } = {},
+): LabelElement[] {
   const elements: LabelElement[] = [];
-  if (mapping.brand) elements.push({ type: "text", sourceField: mapping.brand, role: "brand" });
+  if (options.includeBrand !== false && mapping.brand) {
+    elements.push({ type: "text", sourceField: mapping.brand, role: "brand" });
+  }
   if (mapping.productName) elements.push({ type: "text", sourceField: mapping.productName, role: "productName" });
 
-  const variantFields = [mapping.color, mapping.size].filter((field): field is string => Boolean(field));
-  if (variantFields.length > 0) {
-    elements.push({ type: "compositeText", sourceFields: variantFields, separator: " / ", role: "variant" });
+  if (mapping.color || mapping.size) {
+    elements.push({
+      type: "compositeText",
+      sourceFields: [mapping.color ?? "", mapping.size ?? ""],
+      separator: " / ",
+      role: "variant",
+    });
   }
   if (mapping.price) elements.push({ type: "text", sourceField: mapping.price, role: "price" });
   if (mapping.barcode) {

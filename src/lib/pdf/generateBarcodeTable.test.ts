@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mmToPt } from "../units/mmToPt";
 import {
   BARCODE_TABLE_ACCENT_COLOR,
-  BARCODE_TABLE_BRAND_PRODUCT_GAP_MM,
+  BARCODE_TABLE_METADATA_PRODUCT_GAP_MM,
   BARCODE_TABLE_CARD_COLUMNS,
   BARCODE_TABLE_CARD_ROWS,
   BARCODE_TABLE_COLOR_FONT_SIZE_MM,
@@ -17,7 +17,6 @@ import {
   calculateBarcodeTablePageCount,
   createBarcodeTableCardSize,
   createBarcodeTablePageSize,
-  formatBarcodeTableBrand,
   formatBarcodeTableMetadata,
   formatBarcodeTableSizeTag,
   getBarcodeTableSizeLayout,
@@ -55,8 +54,8 @@ describe("barcode card PDF layout", () => {
     expect(BARCODE_TABLE_VARIANT_PRICE_GAP_MM).toBe(1);
   });
 
-  it("creates a clear hierarchy between brand, product name, and color", () => {
-    expect(BARCODE_TABLE_BRAND_PRODUCT_GAP_MM).toBe(0.9);
+  it("creates a clear hierarchy between product metadata, product name, and color", () => {
+    expect(BARCODE_TABLE_METADATA_PRODUCT_GAP_MM).toBe(0.9);
     expect(BARCODE_TABLE_PRODUCT_COLOR_GAP_MM).toBe(0.5);
     expect(BARCODE_TABLE_COLOR_FONT_SIZE_MM).toBe(1.9);
     expect(BARCODE_TABLE_COLOR_FONT_WEIGHT).toBe(700);
@@ -85,17 +84,9 @@ describe("barcode card PDF layout", () => {
     expect(getBarcodeTableSizeLayout()).toBe("image-corner-box");
   });
 
-  it("uses FOUNTAIN when the brand is empty", () => {
-    expect(formatBarcodeTableBrand("")).toBe("FOUNTAIN");
-    expect(formatBarcodeTableBrand("   ")).toBe("FOUNTAIN");
-    expect(formatBarcodeTableBrand("Kelen")).toBe("Kelen");
-  });
-
   it("places the product number with the product metadata instead of the barcode value", () => {
-    expect(formatBarcodeTableMetadata("", "271033"))
-      .toBe("FOUNTAIN | 271033");
-    expect(formatBarcodeTableMetadata("Kelen", ""))
-      .toBe("Kelen");
+    expect(formatBarcodeTableMetadata("271033")).toBe("型番: 271033");
+    expect(formatBarcodeTableMetadata("")).toBe("");
   });
 
   it("shows the product code without a CODE prefix", () => {

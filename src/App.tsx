@@ -156,11 +156,12 @@ export default function App() {
   const totalPages = calculateLabelPageCount(selectedEntries);
 
   const createCurrentPdfs = async () => {
-    const elements = createDefaultLabelElements(mapping);
+    const labelElements = createDefaultLabelElements(mapping, { includeBrand: false });
+    const tableElements = createDefaultLabelElements(mapping, { includeBrand: false });
     const pdfTitles = createPdfTitles(pdfTitle);
     const [labelBytes, tableBytes] = await Promise.all([
-      generateLabelsPdf(selectedEntries, elements, settings),
-      generateBarcodeTablePdf(selectedEntries, elements, pdfTitles.pageTitle),
+      generateLabelsPdf(selectedEntries, labelElements, settings),
+      generateBarcodeTablePdf(selectedEntries, tableElements, pdfTitles.pageTitle),
     ]);
     return { labelBytes, tableBytes, pdfTitles };
   };
@@ -362,7 +363,11 @@ export default function App() {
         throw new Error("印刷対象にバーコード値が空の商品があります。");
       }
       const jobId = crypto.randomUUID();
-      const result = await generateDirectPrintPages(selectedEntries, createDefaultLabelElements(mapping), settings);
+      const result = await generateDirectPrintPages(
+        selectedEntries,
+        createDefaultLabelElements(mapping, { includeBrand: false }),
+        settings,
+      );
       const bundle = createMacPrintBundle({ jobId, pages: result.pages });
       if (runningInMacApp) {
         const printResult = await startPreparedMacPrintBundleDownload(bundle);
