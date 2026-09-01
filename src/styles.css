@@ -252,6 +252,13 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(32, 40, 51
 .pdf-image-cell { gap: 5px; padding: 4px 6px !important; }
 .pdf-image-select { min-width: 0; flex: 1; height: 32px; display: grid; place-items: center; overflow: hidden; padding: 2px 6px; border: 1px solid #aab5bd; border-radius: 4px; background: #fff; color: #45525e; font-size: 10px; font-weight: 700; }
 .pdf-image-select:hover { border-color: var(--accent); background: var(--accent-soft); }
+.pdf-image-cell.is-dragging .pdf-image-select {
+  border-color: var(--accent-dark);
+  border-style: dashed;
+  background: #dfe5e9;
+  color: var(--accent-dark);
+  box-shadow: inset 0 0 0 1px rgba(32, 40, 51, 0.18);
+}
 .pdf-image-select.has-image { height: 84px; padding: 3px; background: #fff; }
 .pdf-image-select img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; }
 .pdf-image-select span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -277,6 +284,7 @@ input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
 .data-row.is-active::after { content: ""; position: absolute; z-index: 2; inset: 0; border: 2px solid var(--accent); box-shadow: 0 2px 7px rgba(32, 40, 51, 0.18); pointer-events: none; }
 .data-row.is-active .copies-cell input { border-color: var(--accent); }
 .data-cell { min-width: max-content !important; display: block !important; overflow: visible !important; padding-right: 16px !important; white-space: nowrap; text-overflow: clip; line-height: 28px; }
+.data-cell.is-copyable { -webkit-user-select: text; user-select: text; cursor: text; }
 .data-cell.product-color-cell {
   overflow-wrap: normal;
   white-space: nowrap;

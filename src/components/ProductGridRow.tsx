@@ -1,9 +1,26 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type MouseEvent,
+} from "react";
 import type { CsvRow, RowState } from "../types/csv";
 import { formatPrice } from "../lib/format";
 import { formatVariantValue } from "../lib/label/formatVariant";
 
 export type ProductColumn = { key: string; label: string; field: string; kind?: "price" };
+
+const PDF_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+export function getAcceptedPdfImage(files: ArrayLike<File>): File | undefined {
+  return Array.from(files).find((file) => PDF_IMAGE_TYPES.has(file.type));
+}
+
+export function shouldActivateProductRow(selectionText: string | null | undefined): boolean {
+  return !selectionText?.trim();
+}
 
 type ProductGridRowProps = {
   row: CsvRow;
@@ -27,6 +44,7 @@ type PdfImagePickerProps = {
 function PdfImagePicker({ file, rowName, onChange }: PdfImagePickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string>();
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     if (!file) {
@@ -38,8 +56,37 @@ function PdfImagePicker({ file, rowName, onChange }: PdfImagePickerProps) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
+  const acceptImage = (files: ArrayLike<File>) => {
+    const image = getAcceptedPdfImage(files);
+    if (image) onChange(image);
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+    setDragging(false);
+  };
+
   return (
-    <div role="gridcell" className="pdf-image-cell" onClick={(event) => event.stopPropagation()}>
+    <div
+      role="gridcell"
+      className={`pdf-image-cell ${dragging ? "is-dragging" : ""}`}
+      onClick={(event) => event.stopPropagation()}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={handleDragLeave}
+      onDrop={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setDragging(false);
+        acceptImage(event.dataTransfer.files);
+      }}
+    >
       <input
         ref={inputRef}
         className="visually-hidden"
@@ -47,17 +94,17 @@ function PdfImagePicker({ file, rowName, onChange }: PdfImagePickerProps) {
         accept="image/png,image/jpeg,image/webp"
         aria-label={`${rowName}の一覧PDF画像を選択`}
         onChange={(event) => {
-          onChange(event.target.files?.[0]);
+          acceptImage(event.target.files ?? []);
           event.target.value = "";
         }}
       />
       <button
-        className={`pdf-image-select ${file ? "has-image" : ""}`}
+        className={`pdf-image-select ${file ? "has-image" : ""} ${dragging ? "is-dragging" : ""}`}
         type="button"
-        title={file ? `${file.name}を変更` : "一覧PDFへ載せる画像を選択"}
+        title={file ? `${file.name}を変更（ドラッグ＆ドロップもできます）` : "一覧PDFへ載せる画像を選択、またはドラッグ＆ドロップ"}
         onClick={() => inputRef.current?.click()}
       >
-        {previewUrl ? <img src={previewUrl} alt="" /> : <span>{file ? file.name : "画像を追加"}</span>}
+        {dragging ? <span>ここに画像をドロップ</span> : previewUrl ? <img src={previewUrl} alt="" /> : <span>{file ? file.name : "画像を追加"}</span>}
       </button>
       {file ? (
         <button
@@ -95,7 +142,9 @@ export function ProductGridRow({
       role="row"
       aria-current={active ? "true" : undefined}
       title={active ? "この商品をプレビュー中" : "クリックしてプレビュー"}
-      onClick={() => onActivate(index)}
+      onClick={() => {
+        if (shouldActivateProductRow(window.getSelection()?.toString())) onActivate(index);
+      }}
     >
       <div role="gridcell" className="checkbox-cell" onClick={stop}>
         <input
@@ -121,7 +170,7 @@ export function ProductGridRow({
         return (
           <div
             role="gridcell"
-            className={`data-cell product-column-${column.key} ${column.key === "color" ? "product-color-cell" : ""}`}
+            className={`data-cell is-copyable product-column-${column.key} ${column.key === "color" ? "product-color-cell" : ""}`}
             title={raw}
             key={column.key}
           >

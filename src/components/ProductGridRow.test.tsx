@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { ProductGridRow } from "./ProductGridRow";
+import {
+  getAcceptedPdfImage,
+  ProductGridRow,
+  shouldActivateProductRow,
+} from "./ProductGridRow";
 
 const baseProps = {
   row: { 商品コード: "ABC123", 商品名: "Preview sample" },
@@ -41,7 +45,16 @@ describe("ProductGridRow", () => {
     expect(html).toContain("画像を追加");
     expect(html).toContain("image/png,image/jpeg,image/webp");
     expect(html).toContain("ABC123の一覧PDF画像を選択");
+    expect(html).toContain("ドラッグ＆ドロップ");
     expect(html.indexOf("checkbox-cell")).toBeLessThan(html.indexOf("pdf-image-cell"));
+  });
+
+  it("uses the first supported image when files are dropped", () => {
+    const textFile = { name: "notes.txt", type: "text/plain" } as File;
+    const imageFile = { name: "item.webp", type: "image/webp" } as File;
+
+    expect(getAcceptedPdfImage([textFile, imageFile])).toBe(imageFile);
+    expect(getAcceptedPdfImage([textFile])).toBeUndefined();
   });
 
   it("marks the barcode cell as the fixed horizontal-scroll column", () => {
@@ -65,5 +78,13 @@ describe("ProductGridRow", () => {
 
     expect(html).toContain("product-color-cell");
     expect(html).toContain("WHITE/PINK/BLACK BORDER");
+  });
+
+  it("marks displayed product data as copyable and keeps text selection from changing previews", () => {
+    const html = renderToStaticMarkup(<ProductGridRow {...baseProps} active={false} />);
+
+    expect(html).toContain("data-cell is-copyable");
+    expect(shouldActivateProductRow("ABC123")).toBe(false);
+    expect(shouldActivateProductRow("   ")).toBe(true);
   });
 });
