@@ -20,7 +20,7 @@ export const mappingDefinitions: ReadonlyArray<{
   required?: boolean;
 }> = [
   { key: "barcode", label: "バーコード", required: true },
-  { key: "productNumber", label: "品番" },
+  { key: "productNumber", label: "型番（グループコード）" },
   { key: "productName", label: "商品名" },
   { key: "price", label: "価格" },
   { key: "color", label: "カラー" },

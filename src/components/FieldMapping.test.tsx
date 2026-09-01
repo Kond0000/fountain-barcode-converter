@@ -16,7 +16,7 @@ describe("FieldMappingPanel", () => {
     expect(html).not.toContain("<select");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain(">商品コード</span>");
-    expect(html).toContain(">品番</span>");
+    expect(html).toContain(">型番（グループコード）</span>");
     expect(html).toContain(">ブランド</span>");
   });
 });

@@ -25,6 +25,13 @@ describe("detectFields", () => {
     });
   });
 
+  it("uses the model number when both synonymous columns are present", () => {
+    expect(detectFields(["商品コード", "型番", "グループコード"])).toMatchObject({
+      barcode: "商品コード",
+      productNumber: "型番",
+    });
+  });
+
   it("maps ブランド名 or ブランド to brand and prefers ブランド名", () => {
     expect(detectFields(["商品コード", "ブランド名"])).toMatchObject({
       brand: "ブランド名",

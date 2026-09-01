@@ -82,7 +82,7 @@ type ProductGridProps = {
 export function createProductColumns(mapping: FieldMapping): ProductColumn[] {
   return [
     mapping.barcode && { key: "barcode", label: "バーコード", field: mapping.barcode },
-    mapping.productNumber && { key: "productNumber", label: "品番", field: mapping.productNumber },
+    mapping.productNumber && { key: "productNumber", label: "型番", field: mapping.productNumber },
     mapping.productName && { key: "productName", label: "商品名", field: mapping.productName },
     mapping.brand && { key: "brand", label: "ブランド", field: mapping.brand },
     mapping.color && { key: "color", label: "カラー", field: mapping.color },

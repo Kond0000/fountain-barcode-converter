@@ -8,10 +8,10 @@ import {
 } from "./ProductGrid";
 
 describe("product grid columns", () => {
-  it("shows the item-number and brand columns when their fields are mapped", () => {
+  it("shows the model number and brand columns when their fields are mapped", () => {
     const columns = createProductColumns({
       barcode: "商品コード",
-      productNumber: "グループコード",
+      productNumber: "型番",
       productName: "商品名",
       brand: "ブランド名",
       color: "カラー",
@@ -29,8 +29,8 @@ describe("product grid columns", () => {
       "price",
     ]);
     expect(columns.find(({ key }) => key === "productNumber")).toMatchObject({
-      label: "品番",
-      field: "グループコード",
+      label: "型番",
+      field: "型番",
     });
     expect(columns.find(({ key }) => key === "brand")).toMatchObject({
       label: "ブランド",
@@ -118,4 +118,5 @@ describe("product grid PDF images", () => {
       size: "サイズ",
     }, 0)).toEqual([0, 1, 2]);
   });
+
 });
