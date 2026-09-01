@@ -106,6 +106,11 @@ export function ProductGridRow({
         />
         {active ? <span className="visually-hidden">プレビュー中</span> : null}
       </div>
+      <PdfImagePicker
+        file={state.pdfImage}
+        rowName={rowName}
+        onChange={(file) => onPdfImageChange(index, file)}
+      />
       {columns.map((column) => {
         const raw = row[column.field] ?? "";
         const content = column.kind === "price"
@@ -124,11 +129,6 @@ export function ProductGridRow({
           </div>
         );
       })}
-      <PdfImagePicker
-        file={state.pdfImage}
-        rowName={rowName}
-        onChange={(file) => onPdfImageChange(index, file)}
-      />
       <div role="gridcell" className="copies-cell" onClick={stop}>
         <input
           type="number"

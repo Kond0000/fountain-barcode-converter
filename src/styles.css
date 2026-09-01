@@ -241,11 +241,12 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(32, 40, 51
 .product-grid-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; min-width: max-content; }
 .product-grid-row > div { min-width: 0; display: flex; align-items: center; min-height: 41px; padding: 6px 11px; border-right: 1px solid #dfe4e8; border-bottom: 1px solid #dfe4e8; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
 .product-grid-row > div:last-child { border-right: 0; }
-.product-grid-row > .checkbox-cell { position: sticky; z-index: 4; left: 0; }
+.product-grid-row > .checkbox-cell { position: sticky; z-index: 5; left: 0; }
+.product-grid-row > .pdf-image-cell { position: sticky; z-index: 4; left: 38px; }
 .product-grid-row > .product-column-barcode {
   position: sticky;
   z-index: 3;
-  left: 38px;
+  left: 150px;
   box-shadow: 6px 0 8px -8px rgba(32, 40, 51, 0.5);
 }
 .pdf-image-cell { gap: 5px; padding: 4px 6px !important; }
@@ -258,7 +259,8 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(32, 40, 51
 .pdf-image-remove:hover { background: #fff0ee; }
 .header-row { position: sticky; z-index: 10; top: 0; box-shadow: 0 1px 0 var(--border-dark); }
 .header-row > div { min-height: 42px; background: #f8fafb; color: #34404c; font-size: 12px; font-weight: 700; }
-.header-row > .checkbox-cell { z-index: 14; }
+.header-row > .checkbox-cell { z-index: 15; }
+.header-row > .pdf-image-cell { z-index: 14; }
 .header-row > .product-column-barcode { z-index: 13; }
 .checkbox-cell { justify-content: center; padding: 5px !important; }
 input[type="checkbox"] { appearance: none; width: 18px; height: 18px; margin: 0; border: 1px solid var(--border-dark); border-radius: 3px; background: #fff; display: grid; place-content: center; }

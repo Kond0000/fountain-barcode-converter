@@ -50,7 +50,7 @@ describe("product grid columns", () => {
       size: "サイズ",
     });
     const template = createProductGridTemplate(columns);
-    expect(template).toBe("38px minmax(max-content, 1.1fr) minmax(max-content, 1.8fr) minmax(max-content, 1fr) max-content 112px 72px");
+    expect(template).toBe("38px 112px minmax(max-content, 1.1fr) minmax(max-content, 1.8fr) minmax(max-content, 1fr) max-content 72px");
   });
 });
 

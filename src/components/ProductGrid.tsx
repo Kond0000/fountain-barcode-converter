@@ -101,8 +101,8 @@ export function createProductGridTemplate(columns: ProductColumn[]): string {
   };
   return [
     "38px",
-    ...columns.map(({ key }) => flexibleTracks[key] ?? "max-content"),
     "112px",
+    ...columns.map(({ key }) => flexibleTracks[key] ?? "max-content"),
     "72px",
   ].join(" ");
 }
@@ -174,6 +174,7 @@ export function ProductGrid({
               onChange={(event) => onToggleMany(visibleIndices, event.target.checked)}
             />
           </div>
+          <div role="columnheader" className="pdf-image-cell">一覧PDF画像</div>
           {columns.map((column) => (
             <div
               role="columnheader"
@@ -183,7 +184,6 @@ export function ProductGrid({
               {column.label}
             </div>
           ))}
-          <div role="columnheader">一覧PDF画像</div>
           <div role="columnheader">枚数</div>
         </div>
         {visible.length > 0 ? visible.map(({ row, index }) => (
