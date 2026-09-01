@@ -246,6 +246,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDe
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = .default()
     configuration.applicationNameForUserAgent = "LABELPRINT-MAC/1.0"
+    configuration.preferences.isTextInteractionEnabled = true
     configuration.userContentController.addScriptMessageHandler(
       self,
       contentWorld: .page,
