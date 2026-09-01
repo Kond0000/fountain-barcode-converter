@@ -84,8 +84,8 @@ describe("barcode card PDF layout", () => {
     expect(getBarcodeTableSizeLayout()).toBe("image-corner-box");
   });
 
-  it("places the product number with the product metadata instead of the barcode value", () => {
-    expect(formatBarcodeTableMetadata("271033")).toBe("型番: 271033");
+  it("shows the product number in metadata without a field prefix", () => {
+    expect(formatBarcodeTableMetadata("271033")).toBe("271033");
     expect(formatBarcodeTableMetadata("")).toBe("");
   });
 

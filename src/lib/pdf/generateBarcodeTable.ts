@@ -1,6 +1,5 @@
 import { createCode128CanvasForPrinter } from "../barcode/generateCode128";
 import { formatPrice } from "../format";
-import { formatLabelField } from "../label/formatLabelField";
 import { formatVariantValue } from "../label/formatVariant";
 import { formatProductNumber } from "../label/formatProductNumber";
 import {
@@ -114,7 +113,7 @@ export function formatBarcodeTableSizeTag(size: string): string {
 }
 
 export function formatBarcodeTableMetadata(productNumber: string): string {
-  return formatLabelField("型番", formatProductNumber(productNumber));
+  return formatProductNumber(productNumber);
 }
 
 export function formatBarcodeTableCodeValue(barcodeValue: string, barcode: string): string {
