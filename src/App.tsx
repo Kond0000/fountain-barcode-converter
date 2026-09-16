@@ -255,6 +255,7 @@ export default function App() {
   };
 
   const handlePreviewPdf = async () => {
+    if (!csvData) return;
     if (pdfPreviews.length > 0) {
       setPdfPreviewOpen(true);
       return;
@@ -273,6 +274,15 @@ export default function App() {
       const { labelBytes, tableBytes, pdfTitles } = await createCurrentPdfs();
       setCurrentPdfPreviews(labelBytes, tableBytes, pdfTitles);
       setPdfPreviewOpen(true);
+      try {
+        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle });
+      } catch {
+        setMessage({
+          tone: "warning",
+          title: "作業履歴を保存できませんでした",
+          detail: "PDFは確認できますが、端末内の作業履歴には保存できませんでした。",
+        });
+      }
     } catch (error) {
       setMessage({ tone: "error", ...explainPdfGenerationError(error) });
     } finally {
