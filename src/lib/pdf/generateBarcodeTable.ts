@@ -12,6 +12,7 @@ import { wrapTextLines } from "../label/wrapText";
 import { mmToPt } from "../units/mmToPt";
 import type { CsvRow } from "../../types/csv";
 import type { LabelElement } from "../../types/label";
+import barcodeTableSampleImageUrl from "../../assets/dododo-sample.png";
 
 export type BarcodeTableEntry = { row: CsvRow; copies: number; imageFile?: File };
 
@@ -29,6 +30,11 @@ export const BARCODE_TABLE_PRODUCT_COLOR_GAP_MM = 0.5;
 export const BARCODE_TABLE_COLOR_FONT_SIZE_MM = 1.9;
 export const BARCODE_TABLE_COLOR_FONT_WEIGHT = 700;
 export const BARCODE_TABLE_COLOR_TEXT_COLOR = "#3f3f3f";
+export const BARCODE_TABLE_SAMPLE_IMAGE_VERTICAL_PADDING_MM = 3;
+export const BARCODE_TABLE_SAMPLE_IMAGE_URL = barcodeTableSampleImageUrl;
+export const BARCODE_TABLE_SIZE_BADGE_BACKGROUND_COLOR = "#ffffff";
+export const BARCODE_TABLE_SIZE_BADGE_MAX_WIDTH_MM = 32;
+export const BARCODE_TABLE_SIZE_BADGE_MIN_FONT_SIZE_MM = 1.55;
 
 export type BarcodeTableSizeLayout =
   | "image-corner-box"
@@ -60,6 +66,8 @@ type DecodedPdfImage = {
   height: number;
   dispose: () => void;
 };
+
+let barcodeTableSampleImagePromise: Promise<DecodedPdfImage> | undefined;
 
 function mmToPixels(mm: number): number {
   return Math.round(mm * BARCODE_TABLE_PIXELS_PER_MM);
@@ -94,6 +102,10 @@ export function calculateBarcodeTablePageCount(entries: BarcodeTableEntry[]): nu
 
 export function usesBarcodeTablePlaceholder(entry: BarcodeTableEntry): boolean {
   return !entry.imageFile;
+}
+
+export function getBarcodeTableImageVerticalPaddingMm(entry: BarcodeTableEntry): number {
+  return usesBarcodeTablePlaceholder(entry) ? BARCODE_TABLE_SAMPLE_IMAGE_VERTICAL_PADDING_MM : 0;
 }
 
 export function getBarcodeTableVariantColumns(variantParts: string[]): {
@@ -313,9 +325,23 @@ function drawSizeImageCornerBox(
 
   const horizontalPadding = mmToPixels(1.1);
   const minWidth = mmToPixels(12);
-  const maxWidth = mmToPixels(18);
+  const maxWidth = Math.min(
+    mmToPixels(BARCODE_TABLE_SIZE_BADGE_MAX_WIDTH_MM),
+    imageWidth,
+  );
   const height = mmToPixels(5.4);
-  setFont(context, 2.05, 800);
+  const preferredFontSizeMm = 2.05;
+  const minimumFontSizeMm = BARCODE_TABLE_SIZE_BADGE_MIN_FONT_SIZE_MM;
+  setFont(context, preferredFontSizeMm, 800);
+  const availableTextWidth = Math.max(1, maxWidth - horizontalPadding * 2);
+  const preferredTextWidth = context.measureText(text).width;
+  const fittedFontSizeMm = preferredTextWidth > availableTextWidth
+    ? Math.max(
+        minimumFontSizeMm,
+        preferredFontSizeMm * availableTextWidth / preferredTextWidth,
+      )
+    : preferredFontSizeMm;
+  setFont(context, fittedFontSizeMm, 800);
   const width = Math.min(
     maxWidth,
     Math.max(minWidth, context.measureText(text).width + horizontalPadding * 2),
@@ -323,6 +349,8 @@ function drawSizeImageCornerBox(
   const left = imageLeft + imageWidth - width;
   const top = imageTop + imageHeight - height;
 
+  context.fillStyle = BARCODE_TABLE_SIZE_BADGE_BACKGROUND_COLOR;
+  context.fillRect(left, top, width, height);
   context.strokeStyle = "#111111";
   context.lineWidth = Math.max(1, mmToPixels(0.22));
   context.strokeRect(left, top, width, height);
@@ -402,50 +430,26 @@ async function decodePdfImage(file: File): Promise<DecodedPdfImage> {
   };
 }
 
-function drawImagePlaceholder(
-  context: CanvasRenderingContext2D,
-  left: number,
-  top: number,
-  width: number,
-  height: number,
-): void {
-  context.fillStyle = "#ffffff";
-  context.fillRect(left, top, width, height);
-
-  const iconWidth = mmToPixels(12);
-  const iconHeight = mmToPixels(8.5);
-  const iconLeft = left + (width - iconWidth) / 2;
-  const iconTop = top + (height - iconHeight) / 2 - mmToPixels(1.5);
-  context.strokeStyle = "#77736c";
-  context.lineWidth = Math.max(1, mmToPixels(0.25));
-  context.strokeRect(iconLeft, iconTop, iconWidth, iconHeight);
-  context.beginPath();
-  context.arc(
-    iconLeft + mmToPixels(3),
-    iconTop + mmToPixels(2.5),
-    mmToPixels(0.8),
-    0,
-    Math.PI * 2,
-  );
-  context.stroke();
-  context.beginPath();
-  context.moveTo(iconLeft + mmToPixels(1.2), iconTop + iconHeight - mmToPixels(1.1));
-  context.lineTo(iconLeft + mmToPixels(4.7), iconTop + mmToPixels(4.6));
-  context.lineTo(iconLeft + mmToPixels(7), iconTop + mmToPixels(6.3));
-  context.lineTo(iconLeft + mmToPixels(9.2), iconTop + mmToPixels(3.8));
-  context.lineTo(iconLeft + iconWidth - mmToPixels(1), iconTop + iconHeight - mmToPixels(1.1));
-  context.stroke();
-
-  setFont(context, 1.8, 600);
-  context.fillStyle = "#55524d";
-  drawCenteredText(
-    context,
-    "NO IMAGE / SAMPLE",
-    left,
-    iconTop + iconHeight + mmToPixels(1.2),
-    width,
-    mmToPixels(3),
-  );
+function decodeBarcodeTableSampleImage(): Promise<DecodedPdfImage> {
+  if (!barcodeTableSampleImagePromise) {
+    barcodeTableSampleImagePromise = (async () => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = BARCODE_TABLE_SAMPLE_IMAGE_URL;
+      try {
+        await image.decode();
+      } catch {
+        throw new Error("一覧PDFのサンプル画像を読み込めませんでした。");
+      }
+      return {
+        source: image,
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        dispose: () => undefined,
+      };
+    })();
+  }
+  return barcodeTableSampleImagePromise;
 }
 
 function drawContainedImage(
@@ -455,10 +459,14 @@ function drawContainedImage(
   top: number,
   width: number,
   height: number,
+  verticalPadding = 0,
 ): void {
   context.fillStyle = "#ffffff";
   context.fillRect(left, top, width, height);
-  const scale = Math.min(width / image.width, height / image.height);
+  const constrainedVerticalPadding = Math.min(Math.max(0, verticalPadding), height / 2);
+  const contentTop = top + constrainedVerticalPadding;
+  const contentHeight = height - constrainedVerticalPadding * 2;
+  const scale = Math.min(width / image.width, contentHeight / image.height);
   const imageWidth = image.width * scale;
   const imageHeight = image.height * scale;
   context.imageSmoothingEnabled = true;
@@ -466,7 +474,7 @@ function drawContainedImage(
   context.drawImage(
     image.source,
     left + (width - imageWidth) / 2,
-    top + (height - imageHeight) / 2,
+    contentTop + (contentHeight - imageHeight) / 2,
     imageWidth,
     imageHeight,
   );
@@ -589,13 +597,18 @@ async function renderBarcodeTablePage(
     },
   )));
 
-  const decodedImages: Array<DecodedPdfImage | null> = [];
+  const sampleImage = entries.some(usesBarcodeTablePlaceholder)
+    ? await decodeBarcodeTableSampleImage()
+    : undefined;
+  const decodedImages: DecodedPdfImage[] = [];
   for (const entry of entries) {
-    decodedImages.push(entry.imageFile ? await decodePdfImage(entry.imageFile) : null);
+    const image = entry.imageFile ? await decodePdfImage(entry.imageFile) : sampleImage;
+    if (!image) throw new Error("一覧PDFのサンプル画像を読み込めませんでした。");
+    decodedImages.push(image);
   }
 
   try {
-    entries.forEach((_entry, itemIndex) => {
+    entries.forEach((entry, itemIndex) => {
       const column = itemIndex % BARCODE_TABLE_CARD_COLUMNS;
       const row = Math.floor(itemIndex / BARCODE_TABLE_CARD_COLUMNS);
       const left = mmToPixels(PAGE_MARGIN_MM) + column * (cardWidth + cardGap);
@@ -632,11 +645,15 @@ async function renderBarcodeTablePage(
         : 0;
       const productImageHeight = imageHeight - sizeTagSlotHeight;
       const image = decodedImages[itemIndex];
-      if (image) {
-        drawContainedImage(context, image, imageLeft, imageTop, imageWidth, productImageHeight);
-      } else {
-        drawImagePlaceholder(context, imageLeft, imageTop, imageWidth, productImageHeight);
-      }
+      drawContainedImage(
+        context,
+        image,
+        imageLeft,
+        imageTop,
+        imageWidth,
+        productImageHeight,
+        mmToPixels(getBarcodeTableImageVerticalPaddingMm(entry)),
+      );
       context.strokeStyle = "#111111";
       context.lineWidth = Math.max(1, mmToPixels(0.2));
       context.strokeRect(imageLeft, imageTop, imageWidth, imageHeight);

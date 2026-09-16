@@ -13,12 +13,18 @@ import {
   BARCODE_TABLE_PAGE_WIDTH_MM,
   BARCODE_TABLE_PIXELS_PER_MM,
   BARCODE_TABLE_PRODUCT_COLOR_GAP_MM,
+  BARCODE_TABLE_SAMPLE_IMAGE_URL,
+  BARCODE_TABLE_SAMPLE_IMAGE_VERTICAL_PADDING_MM,
+  BARCODE_TABLE_SIZE_BADGE_BACKGROUND_COLOR,
+  BARCODE_TABLE_SIZE_BADGE_MAX_WIDTH_MM,
+  BARCODE_TABLE_SIZE_BADGE_MIN_FONT_SIZE_MM,
   BARCODE_TABLE_VARIANT_PRICE_GAP_MM,
   calculateBarcodeTablePageCount,
   createBarcodeTableCardSize,
   createBarcodeTablePageSize,
   formatBarcodeTableMetadata,
   formatBarcodeTableSizeTag,
+  getBarcodeTableImageVerticalPaddingMm,
   getBarcodeTableSizeLayout,
   getBarcodeTableVariantColumns,
   getBarcodeTableEntries,
@@ -116,11 +122,25 @@ describe("barcode card PDF layout", () => {
     expect(calculateBarcodeTablePageCount(entries)).toBe(2);
   });
 
-  it("uses a placeholder whenever an image was not uploaded", () => {
+  it("uses the bundled sample image whenever an image was not uploaded", () => {
     const image = new File([new Uint8Array([1])], "item.png", { type: "image/png" });
+    const entryWithoutImage = { row: { code: "A" }, copies: 1 };
+    const entryWithImage = { row: { code: "A" }, copies: 1, imageFile: image };
 
-    expect(usesBarcodeTablePlaceholder({ row: { code: "A" }, copies: 1 })).toBe(true);
-    expect(usesBarcodeTablePlaceholder({ row: { code: "A" }, copies: 1, imageFile: image })).toBe(false);
+    expect(BARCODE_TABLE_SAMPLE_IMAGE_URL).toContain("dododo-sample.png");
+    expect(BARCODE_TABLE_SAMPLE_IMAGE_VERTICAL_PADDING_MM).toBe(3);
+    expect(usesBarcodeTablePlaceholder(entryWithoutImage)).toBe(true);
+    expect(getBarcodeTableImageVerticalPaddingMm(entryWithoutImage)).toBe(3);
+    expect(usesBarcodeTablePlaceholder(entryWithImage)).toBe(false);
+    expect(getBarcodeTableImageVerticalPaddingMm(entryWithImage)).toBe(0);
+  });
+
+  it("gives long size values an opaque, wide badge instead of clipping them over the image", () => {
+    expect(formatBarcodeTableSizeTag("23-25cm(38-41)"))
+      .toBe("SIZE 23-25cm(38-41)");
+    expect(BARCODE_TABLE_SIZE_BADGE_BACKGROUND_COLOR).toBe("#ffffff");
+    expect(BARCODE_TABLE_SIZE_BADGE_MAX_WIDTH_MM).toBeGreaterThanOrEqual(30);
+    expect(BARCODE_TABLE_SIZE_BADGE_MIN_FONT_SIZE_MM).toBeGreaterThanOrEqual(1.5);
   });
 
 });
