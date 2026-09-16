@@ -453,6 +453,28 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDe
     }
   }
 
+  func webView(
+    _ webView: WKWebView,
+    runJavaScriptConfirmPanelWithMessage message: String,
+    initiatedByFrame frame: WKFrameInfo,
+    completionHandler: @escaping (Bool) -> Void
+  ) {
+    let alert = NSAlert()
+    alert.messageText = "LABEL PRINT"
+    alert.informativeText = message
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: "キャンセル")
+
+    if let window = webView.window ?? mainWindow {
+      alert.beginSheetModal(for: window) { response in
+        completionHandler(response == .alertFirstButtonReturn)
+      }
+    } else {
+      completionHandler(alert.runModal() == .alertFirstButtonReturn)
+    }
+  }
+
   private func availableDestination(in directory: URL, fileName: String) -> URL {
     let fileManager = FileManager.default
     let firstChoice = directory.appendingPathComponent(fileName)
