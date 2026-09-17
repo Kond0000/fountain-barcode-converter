@@ -128,9 +128,9 @@ describe("barcode card PDF layout", () => {
     const entryWithImage = { row: { code: "A" }, copies: 1, imageFile: image };
 
     expect(BARCODE_TABLE_SAMPLE_IMAGE_URL).toContain("dododo-sample.png");
-    expect(BARCODE_TABLE_SAMPLE_IMAGE_VERTICAL_PADDING_MM).toBe(3);
+    expect(BARCODE_TABLE_SAMPLE_IMAGE_VERTICAL_PADDING_MM).toBe(2);
     expect(usesBarcodeTablePlaceholder(entryWithoutImage)).toBe(true);
-    expect(getBarcodeTableImageVerticalPaddingMm(entryWithoutImage)).toBe(3);
+    expect(getBarcodeTableImageVerticalPaddingMm(entryWithoutImage)).toBe(2);
     expect(usesBarcodeTablePlaceholder(entryWithImage)).toBe(false);
     expect(getBarcodeTableImageVerticalPaddingMm(entryWithImage)).toBe(0);
   });
