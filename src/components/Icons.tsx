@@ -54,6 +54,15 @@ export function ChevronIcon(props: IconProps) {
   );
 }
 
+export function SortIcon({ direction, ...props }: IconProps & { direction?: "ascending" | "descending" }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" {...props}>
+      {direction !== "descending" ? <path d="m4 6 4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      {direction !== "ascending" ? <path d="m4 10 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+    </svg>
+  );
+}
+
 export function CloseIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>

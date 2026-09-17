@@ -269,6 +269,12 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(32, 40, 51
 .header-row > .checkbox-cell { z-index: 15; }
 .header-row > .pdf-image-cell { z-index: 14; }
 .header-row > .product-column-barcode { z-index: 13; }
+.header-row > .sortable-column { padding: 0; }
+.column-sort-button { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 11px; border: 0; background: transparent; font: inherit; text-align: left; white-space: nowrap; }
+.column-sort-button svg { width: 12px; height: 16px; flex: 0 0 12px; color: var(--muted); }
+.column-sort-button:hover, .column-sort-button.is-sorted { background: var(--accent-soft); color: var(--accent-dark); }
+.column-sort-button.is-sorted svg { color: var(--accent-dark); }
+.column-sort-button:focus-visible { outline-offset: -2px; }
 .checkbox-cell { justify-content: center; padding: 5px !important; }
 input[type="checkbox"] { appearance: none; width: 18px; height: 18px; margin: 0; border: 1px solid var(--border-dark); border-radius: 3px; background: #fff; display: grid; place-content: center; }
 input[type="checkbox"]::before { content: ""; width: 9px; height: 5px; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) scale(0); transition: transform 100ms ease; }

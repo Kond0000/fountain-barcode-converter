@@ -2,11 +2,97 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { searchRows, type IndexedCsvRow } from "../lib/csv/searchRows";
 import type { CsvRow, RowState } from "../types/csv";
 import type { FieldMapping } from "../types/mapping";
-import { ChevronIcon } from "./Icons";
+import { ChevronIcon, SortIcon } from "./Icons";
 import { ProductGridRow, type ProductColumn } from "./ProductGridRow";
 import { SearchBar } from "./SearchBar";
 
 export const PRODUCT_GRID_PAGE_SIZE = 100;
+
+export type ProductSort = { key: string; direction: "ascending" | "descending" };
+
+const productCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+
+export function getNextProductSort(current: ProductSort | undefined, key: string): ProductSort {
+  return {
+    key,
+    direction: current?.key === key && current.direction === "ascending" ? "descending" : "ascending",
+  };
+}
+
+function parseSortPrice(value: string): number | undefined {
+  const normalized = value.replace(/^[¥$€£]\s*|\s*円$/g, "").replace(/[,\s]/g, "");
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) return undefined;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+export function sortProductRows(
+  rows: IndexedCsvRow[],
+  sort: ProductSort | undefined,
+  columns: ProductColumn[],
+  rowStates: RowState[],
+): IndexedCsvRow[] {
+  if (!sort) return rows;
+  const direction = sort.direction === "ascending" ? 1 : -1;
+  if (sort.key === "copies") {
+    return [...rows].sort((left, right) =>
+      ((rowStates[left.index]?.copies ?? 1) - (rowStates[right.index]?.copies ?? 1)) * direction
+        || left.index - right.index,
+    );
+  }
+  const column = columns.find(({ key }) => key === sort.key);
+  if (!column) return rows;
+
+  return [...rows].sort((left, right) => {
+    const leftValue = (left.row[column.field] ?? "").normalize("NFKC").trim();
+    const rightValue = (right.row[column.field] ?? "").normalize("NFKC").trim();
+    // Keep empty cells at the end in either direction.
+    if (!leftValue || !rightValue) {
+      return Number(!leftValue) - Number(!rightValue) || left.index - right.index;
+    }
+
+    if (column.kind === "price") {
+      const leftPrice = parseSortPrice(leftValue);
+      const rightPrice = parseSortPrice(rightValue);
+      if (leftPrice !== undefined && rightPrice !== undefined) {
+        return (leftPrice - rightPrice) * direction || left.index - right.index;
+      }
+      if (leftPrice !== undefined || rightPrice !== undefined) {
+        return leftPrice !== undefined ? -1 : 1;
+      }
+    }
+
+    return productCollator.compare(leftValue, rightValue) * direction || left.index - right.index;
+  });
+}
+
+type SortableColumnHeaderProps = {
+  columnKey: string;
+  label: string;
+  className?: string;
+  sort: ProductSort | undefined;
+  onSort: (key: string) => void;
+};
+
+function SortableColumnHeader({ columnKey, label, className = "", sort, onSort }: SortableColumnHeaderProps) {
+  const direction = sort?.key === columnKey ? sort.direction : undefined;
+  const nextDirection = direction === "ascending" ? "降順" : "昇順";
+  const actionLabel = `${label}を${nextDirection}に並び替え`;
+  return (
+    <div role="columnheader" aria-sort={direction ?? "none"} className={`sortable-column ${className}`}>
+      <button
+        type="button"
+        className={`column-sort-button ${direction ? "is-sorted" : ""}`}
+        aria-label={actionLabel}
+        title={actionLabel}
+        onClick={() => onSort(columnKey)}
+      >
+        <span>{label}</span>
+        <SortIcon direction={direction} />
+      </button>
+    </div>
+  );
+}
 
 export function getProductPage(
   rows: IndexedCsvRow[],
@@ -120,6 +206,7 @@ export function ProductGrid({
 }: ProductGridProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<ProductSort>();
   const selectPageCheckboxRef = useRef<HTMLInputElement>(null);
   const columns = useMemo<ProductColumn[]>(
     () => createProductColumns(mapping),
@@ -127,11 +214,21 @@ export function ProductGrid({
   );
 
   const filtered = useMemo(() => searchRows(rows, query), [query, rows]);
+  const sorted = useMemo(() => sortProductRows(filtered, sort, columns, rowStates), [filtered, sort, columns, rowStates]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PRODUCT_GRID_PAGE_SIZE));
   useEffect(() => setPage(1), [query]);
   useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount]);
+  useEffect(() => {
+    setSort(undefined);
+    setPage(1);
+  }, [rows]);
 
-  const visible = getProductPage(filtered, page);
+  const handleSort = (key: string) => {
+    setSort((current) => getNextProductSort(current, key));
+    setPage(1);
+  };
+
+  const visible = getProductPage(sorted, page);
   const visibleIndices = visible.map(({ index }) => index);
   const selectedVisibleCount = visible.reduce(
     (count, { index }) => count + (rowStates[index]?.selected ? 1 : 0),
@@ -176,15 +273,16 @@ export function ProductGrid({
           </div>
           <div role="columnheader" className="pdf-image-cell">一覧PDF画像</div>
           {columns.map((column) => (
-            <div
-              role="columnheader"
+            <SortableColumnHeader
+              columnKey={column.key}
+              label={column.label}
               className={`product-column-${column.key}`}
               key={column.key}
-            >
-              {column.label}
-            </div>
+              sort={sort}
+              onSort={handleSort}
+            />
           ))}
-          <div role="columnheader">枚数</div>
+          <SortableColumnHeader columnKey="copies" label="枚数" sort={sort} onSort={handleSort} />
         </div>
         {visible.length > 0 ? visible.map(({ row, index }) => (
           <ProductGridRow
