@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  createProductColumns,
   createProductGridTemplate,
   getMatchingPdfImageIndices,
-  getNextProductSort,
   getProductPage,
   PRODUCT_GRID_PAGE_SIZE,
-  sortProductRows,
 } from "./ProductGrid";
+import { createProductColumns, getNextProductSort, sortProductRows } from "../lib/csv/productRows";
 import { searchRows } from "../lib/csv/searchRows";
 import type { CsvRow } from "../types/csv";
 

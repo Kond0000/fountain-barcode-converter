@@ -7,10 +7,9 @@ import {
   type MouseEvent,
 } from "react";
 import type { CsvRow, RowState } from "../types/csv";
+import type { ProductColumn } from "../lib/csv/productRows";
 import { formatPrice } from "../lib/format";
 import { formatVariantValue } from "../lib/label/formatVariant";
-
-export type ProductColumn = { key: string; label: string; field: string; kind?: "price" };
 
 const PDF_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
