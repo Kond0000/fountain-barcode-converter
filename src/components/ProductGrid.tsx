@@ -107,6 +107,8 @@ type ProductGridProps = {
   rowStates: RowState[];
   mapping: FieldMapping;
   activeRowIndex: number;
+  sort: ProductSort | undefined;
+  onSortChange: (sort: ProductSort) => void;
   onActivate: (index: number) => void;
   onSelectedChange: (index: number, selected: boolean) => void;
   onCopiesChange: (index: number, copies: number) => void;
@@ -135,6 +137,8 @@ export function ProductGrid({
   rowStates,
   mapping,
   activeRowIndex,
+  sort,
+  onSortChange,
   onActivate,
   onSelectedChange,
   onCopiesChange,
@@ -143,7 +147,6 @@ export function ProductGrid({
 }: ProductGridProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<ProductSort>();
   const selectPageCheckboxRef = useRef<HTMLInputElement>(null);
   const columns = useMemo<ProductColumn[]>(
     () => createProductColumns(mapping),
@@ -153,15 +156,11 @@ export function ProductGrid({
   const filtered = useMemo(() => searchRows(rows, query), [query, rows]);
   const sorted = useMemo(() => sortProductRows(filtered, sort, columns, rowStates), [filtered, sort, columns, rowStates]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PRODUCT_GRID_PAGE_SIZE));
-  useEffect(() => setPage(1), [query]);
+  useEffect(() => setPage(1), [query, sort, rows]);
   useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount]);
-  useEffect(() => {
-    setSort(undefined);
-    setPage(1);
-  }, [rows]);
 
   const handleSort = (key: string) => {
-    setSort((current) => getNextProductSort(current, key));
+    onSortChange(getNextProductSort(sort, key));
     setPage(1);
   };
 

@@ -12,6 +12,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { WorkHistoryDialog } from "./components/WorkHistoryDialog";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
+import { createSelectedProductEntries, type ProductSort } from "./lib/csv/productRows";
 import {
   clearWorkHistory,
   deleteWorkHistory,
@@ -68,6 +69,7 @@ export default function App() {
   const [csvData, setCsvData] = useState<CsvData | null>(null);
   const [mapping, setMapping] = useState<FieldMapping>({});
   const [rowStates, setRowStates] = useState<RowState[]>([]);
+  const [productSort, setProductSort] = useState<ProductSort>();
   const [activeRowIndex, setActiveRowIndex] = useState(0);
   const [settings, setSettings] = useState<LabelSettings>(DEFAULT_LABEL_SETTINGS);
   const [loadingCsv, setLoadingCsv] = useState(false);
@@ -110,7 +112,7 @@ export default function App() {
       return;
     }
     setMessage((current) => current?.tone === "success" ? null : current);
-  }, [csvData, mapping, rowStates, settings, pdfTitle]);
+  }, [csvData, mapping, rowStates, settings, pdfTitle, productSort]);
 
   const handleFile = async (file: File) => {
     setLoadingCsv(true);
@@ -121,6 +123,7 @@ export default function App() {
       setCsvData(parsed);
       setMapping(detectedMapping);
       setRowStates(parsed.rows.map(() => ({ selected: true, copies: 1 })));
+      setProductSort(undefined);
       setActiveRowIndex(0);
       setPreviewListOpen(false);
       setOpenTool(detectedMapping.barcode ? null : "mapping");
@@ -147,11 +150,8 @@ export default function App() {
   };
 
   const selectedEntries = useMemo(
-    () => csvData?.rows.flatMap((row, index) => {
-      const state = rowStates[index];
-      return state?.selected ? [{ row, copies: state.copies, imageFile: state.pdfImage }] : [];
-    }) ?? [],
-    [csvData, rowStates],
+    () => csvData ? createSelectedProductEntries(csvData.rows, rowStates, mapping, productSort) : [],
+    [csvData, rowStates, mapping, productSort],
   );
   const totalPages = calculateLabelPageCount(selectedEntries);
 
@@ -478,6 +478,8 @@ export default function App() {
               rowStates={rowStates}
               mapping={mapping}
               activeRowIndex={activeRowIndex}
+              sort={productSort}
+              onSortChange={setProductSort}
               onActivate={setActiveRowIndex}
               onSelectedChange={(index, selected) => {
                 updateRowState(index, { selected });

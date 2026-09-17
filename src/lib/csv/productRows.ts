@@ -73,3 +73,16 @@ export function createProductColumns(mapping: FieldMapping): ProductColumn[] {
     mapping.price && { key: "price", label: "価格", field: mapping.price, kind: "price" as const },
   ].filter((column): column is ProductColumn => Boolean(column));
 }
+
+export function createSelectedProductEntries(
+  rows: CsvRow[],
+  rowStates: RowState[],
+  mapping: FieldMapping,
+  sort: ProductSort | undefined,
+): { row: CsvRow; copies: number; imageFile?: File }[] {
+  const indexed = rows.map((row, index) => ({ row, index }));
+  return sortProductRows(indexed, sort, createProductColumns(mapping), rowStates).flatMap(({ row, index }) => {
+    const state = rowStates[index];
+    return state?.selected ? [{ row, copies: state.copies, imageFile: state.pdfImage }] : [];
+  });
+}
