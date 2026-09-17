@@ -77,4 +77,24 @@ describe("work history", () => {
     expect(deleted).toContain(`history-${WORK_HISTORY_MAX_ENTRIES}`);
     expect(deleted).not.toContain("history-0");
   });
+
+  it("restores the sort used to create the saved PDFs", () => {
+    const state = {
+      ...baseState,
+      rowStates: [{ selected: true, copies: 2 }, { selected: true, copies: 1 }],
+      productSort: { key: "barcode", direction: "descending" as const },
+    };
+    const record = createWorkHistoryRecord(state);
+    expect(restoreWorkHistoryPayload(record.payload)).toEqual(state);
+    expect(record.payload.productSort).not.toBe(state.productSort);
+  });
+
+  it("restores older histories without a sort in their original CSV order", () => {
+    const record = createWorkHistoryRecord({
+      ...baseState,
+      rowStates: [{ selected: true, copies: 1 }, { selected: true, copies: 1 }],
+    });
+    expect(record.payload).not.toHaveProperty("productSort");
+    expect(restoreWorkHistoryPayload(record.payload).productSort).toBeUndefined();
+  });
 });

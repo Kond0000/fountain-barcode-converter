@@ -1,6 +1,7 @@
 import type { CsvData, RowState } from "../../types/csv";
 import type { LabelSettings } from "../../types/label";
 import type { FieldMapping } from "../../types/mapping";
+import type { ProductSort } from "../csv/productRows";
 
 export const WORK_HISTORY_RETENTION_DAYS = 90;
 export const WORK_HISTORY_MAX_ENTRIES = 30;
@@ -43,6 +44,7 @@ export type WorkHistoryPayload = {
   pdfTitle: string;
   rowStates: StoredRowState[];
   images: StoredImage[];
+  productSort?: ProductSort;
 };
 
 export type WorkHistoryState = {
@@ -51,6 +53,7 @@ export type WorkHistoryState = {
   settings: LabelSettings;
   pdfTitle: string;
   rowStates: RowState[];
+  productSort?: ProductSort;
 };
 
 type WorkHistoryRecord = {
@@ -116,6 +119,7 @@ export function createWorkHistoryRecord(
       pdfTitle: state.pdfTitle,
       rowStates,
       images,
+      ...(state.productSort ? { productSort: { ...state.productSort } } : {}),
     },
   };
 }
@@ -142,6 +146,7 @@ export function restoreWorkHistoryPayload(payload: WorkHistoryPayload): WorkHist
     settings: payload.settings,
     pdfTitle: payload.pdfTitle,
     rowStates,
+    ...(payload.productSort ? { productSort: { ...payload.productSort } } : {}),
   };
 }
 

@@ -208,6 +208,7 @@ export default function App() {
       setCsvData(restored.csvData);
       setMapping(restored.mapping);
       setRowStates(restored.rowStates);
+      setProductSort(restored.productSort);
       setSettings(restored.settings);
       setPdfTitle(restored.pdfTitle);
       setActiveRowIndex(0);
@@ -217,7 +218,7 @@ export default function App() {
       setMessage({
         tone: "success",
         title: "作業履歴を復元しました",
-        detail: `${history.csvFileName} の商品データ・列設定・選択状態・枚数・PDFタイトル・画像を復元しました。`,
+        detail: `${history.csvFileName} の商品データ・列設定・選択状態・枚数・並び順・PDFタイトル・画像を復元しました。`,
       });
     } catch {
       setHistoryError("選択した作業履歴を復元できませんでした。別の履歴を選ぶか、アプリを再起動してください。");
@@ -275,7 +276,7 @@ export default function App() {
       setCurrentPdfPreviews(labelBytes, tableBytes, pdfTitles);
       setPdfPreviewOpen(true);
       try {
-        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle });
+        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle, productSort });
       } catch {
         setMessage({
           tone: "warning",
@@ -312,7 +313,7 @@ export default function App() {
       startMacPrintBundleDownload(archiveBytes, pdfTitles.archiveFileName);
       let historyDetail = "この作業は端末内の作業履歴にも保存されました。";
       try {
-        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle });
+        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle, productSort });
       } catch {
         historyDetail = "PDFは保存できましたが、端末内の作業履歴には保存できませんでした。";
       }
