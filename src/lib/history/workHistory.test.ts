@@ -24,6 +24,18 @@ const baseState = {
 };
 
 describe("work history", () => {
+  it("preserves the stock mapping and zero copies while counting only printable products", () => {
+    const state = {
+      ...baseState,
+      mapping: { ...baseState.mapping, stock: "在庫" },
+      rowStates: [{ selected: true, copies: 3 }, { selected: true, copies: 0 }],
+    };
+    const record = createWorkHistoryRecord(state);
+
+    expect(record.summary.selectedCount).toBe(1);
+    expect(restoreWorkHistoryPayload(record.payload)).toEqual(state);
+  });
+
   it("deduplicates a shared image and restores all work state", () => {
     const image = new File([new Uint8Array([1, 2, 3])], "jacket.png", { type: "image/png" });
     const record = createWorkHistoryRecord({
@@ -76,5 +88,25 @@ describe("work history", () => {
     expect(deleted).toContain("expired");
     expect(deleted).toContain(`history-${WORK_HISTORY_MAX_ENTRIES}`);
     expect(deleted).not.toContain("history-0");
+  });
+
+  it("restores the sort used to create the saved PDFs", () => {
+    const state = {
+      ...baseState,
+      rowStates: [{ selected: true, copies: 2 }, { selected: true, copies: 1 }],
+      productSort: { key: "barcode", direction: "descending" as const },
+    };
+    const record = createWorkHistoryRecord(state);
+    expect(restoreWorkHistoryPayload(record.payload)).toEqual(state);
+    expect(record.payload.productSort).not.toBe(state.productSort);
+  });
+
+  it("restores older histories without a sort in their original CSV order", () => {
+    const record = createWorkHistoryRecord({
+      ...baseState,
+      rowStates: [{ selected: true, copies: 1 }, { selected: true, copies: 1 }],
+    });
+    expect(record.payload).not.toHaveProperty("productSort");
+    expect(restoreWorkHistoryPayload(record.payload).productSort).toBeUndefined();
   });
 });

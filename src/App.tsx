@@ -12,6 +12,8 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { WorkHistoryDialog } from "./components/WorkHistoryDialog";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
+import { createSelectedProductEntries, type ProductSort } from "./lib/csv/productRows";
+import { getStockCopies, normalizePrintCopies } from "./lib/csv/stockCopies";
 import {
   clearWorkHistory,
   deleteWorkHistory,
@@ -68,6 +70,7 @@ export default function App() {
   const [csvData, setCsvData] = useState<CsvData | null>(null);
   const [mapping, setMapping] = useState<FieldMapping>({});
   const [rowStates, setRowStates] = useState<RowState[]>([]);
+  const [productSort, setProductSort] = useState<ProductSort>();
   const [activeRowIndex, setActiveRowIndex] = useState(0);
   const [settings, setSettings] = useState<LabelSettings>(DEFAULT_LABEL_SETTINGS);
   const [loadingCsv, setLoadingCsv] = useState(false);
@@ -110,7 +113,7 @@ export default function App() {
       return;
     }
     setMessage((current) => current?.tone === "success" ? null : current);
-  }, [csvData, mapping, rowStates, settings, pdfTitle]);
+  }, [csvData, mapping, rowStates, settings, pdfTitle, productSort]);
 
   const handleFile = async (file: File) => {
     setLoadingCsv(true);
@@ -120,7 +123,11 @@ export default function App() {
       const detectedMapping = detectFields(parsed.headers);
       setCsvData(parsed);
       setMapping(detectedMapping);
-      setRowStates(parsed.rows.map(() => ({ selected: true, copies: 1 })));
+      setRowStates(parsed.rows.map((row) => ({
+        selected: true,
+        copies: getStockCopies(detectedMapping.stock ? row[detectedMapping.stock] : undefined),
+      })));
+      setProductSort(undefined);
       setActiveRowIndex(0);
       setPreviewListOpen(false);
       setOpenTool(detectedMapping.barcode ? null : "mapping");
@@ -140,6 +147,12 @@ export default function App() {
 
   const updateMapping = (key: MappingKey, value?: string) => {
     setMapping((current) => ({ ...current, [key]: value }));
+    if (key === "stock" && value !== mapping.stock && csvData) {
+      setRowStates((current) => current.map((state, index) => ({
+        ...state,
+        copies: getStockCopies(value ? csvData.rows[index][value] : undefined),
+      })));
+    }
   };
 
   const updateRowState = (index: number, patch: Partial<RowState>) => {
@@ -147,11 +160,8 @@ export default function App() {
   };
 
   const selectedEntries = useMemo(
-    () => csvData?.rows.flatMap((row, index) => {
-      const state = rowStates[index];
-      return state?.selected ? [{ row, copies: state.copies, imageFile: state.pdfImage }] : [];
-    }) ?? [],
-    [csvData, rowStates],
+    () => csvData ? createSelectedProductEntries(csvData.rows, rowStates, mapping, productSort) : [],
+    [csvData, rowStates, mapping, productSort],
   );
   const totalPages = calculateLabelPageCount(selectedEntries);
 
@@ -208,6 +218,7 @@ export default function App() {
       setCsvData(restored.csvData);
       setMapping(restored.mapping);
       setRowStates(restored.rowStates);
+      setProductSort(restored.productSort);
       setSettings(restored.settings);
       setPdfTitle(restored.pdfTitle);
       setActiveRowIndex(0);
@@ -217,7 +228,7 @@ export default function App() {
       setMessage({
         tone: "success",
         title: "作業履歴を復元しました",
-        detail: `${history.csvFileName} の商品データ・列設定・選択状態・枚数・PDFタイトル・画像を復元しました。`,
+        detail: `${history.csvFileName} の商品データ・列設定・選択状態・枚数・並び順・PDFタイトル・画像を復元しました。`,
       });
     } catch {
       setHistoryError("選択した作業履歴を復元できませんでした。別の履歴を選ぶか、アプリを再起動してください。");
@@ -275,7 +286,7 @@ export default function App() {
       setCurrentPdfPreviews(labelBytes, tableBytes, pdfTitles);
       setPdfPreviewOpen(true);
       try {
-        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle });
+        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle, productSort });
       } catch {
         setMessage({
           tone: "warning",
@@ -312,7 +323,7 @@ export default function App() {
       startMacPrintBundleDownload(archiveBytes, pdfTitles.archiveFileName);
       let historyDetail = "この作業は端末内の作業履歴にも保存されました。";
       try {
-        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle });
+        await saveWorkHistory({ csvData, mapping, rowStates, settings, pdfTitle, productSort });
       } catch {
         historyDetail = "PDFは保存できましたが、端末内の作業履歴には保存できませんでした。";
       }
@@ -478,13 +489,15 @@ export default function App() {
               rowStates={rowStates}
               mapping={mapping}
               activeRowIndex={activeRowIndex}
+              sort={productSort}
+              onSortChange={setProductSort}
               onActivate={setActiveRowIndex}
               onSelectedChange={(index, selected) => {
                 updateRowState(index, { selected });
                 if (selected) setActiveRowIndex(index);
               }}
               onCopiesChange={(index, copies) => updateRowState(index, {
-                copies: Math.min(999, Math.max(1, Number.isFinite(copies) ? Math.floor(copies) : 1)),
+                copies: normalizePrintCopies(copies),
               })}
               onPdfImageChange={(index, pdfImage) => {
                 const matchingIndices = new Set(getMatchingPdfImageIndices(

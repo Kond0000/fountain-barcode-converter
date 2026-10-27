@@ -187,7 +187,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mapping-panel { grid-column: 1 / -1; min-width: 0; padding: 12px 14px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .section-header { display: grid; grid-template-columns: max-content 1fr; align-items: end; margin-bottom: 10px; border-bottom: 2px solid var(--border-dark); }
 .section-header h2 { margin: 0; padding: 0 7px 8px; border-bottom: 2px solid var(--accent); transform: translateY(2px); font-size: 16px; line-height: 1.2; }
-.mapping-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
+.mapping-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .mapping-field { display: grid; align-content: start; gap: 6px; min-width: 0; font-size: 12px; font-weight: 700; }
 .mapping-label { display: flex; align-items: center; gap: 6px; }
 .mapping-field em { color: var(--danger); font-size: 10px; font-style: normal; }
@@ -210,6 +210,7 @@ input[type="search"], input[type="number"] { min-height: 36px; border: 1px solid
 .app-select-menu li.is-selected::after { color: var(--accent); }
 input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(32, 40, 51, 0.16); }
 .field-error { margin: 10px 0 0; color: var(--danger); font-size: 12px; }
+.mapping-note { margin: 10px 0 0; color: #596673; font-size: 11px; line-height: 1.6; }
 
 .product-panel { grid-column: span 8; min-width: 0; align-self: start; overflow: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .app-shell.has-data > .app-grid > .product-panel {

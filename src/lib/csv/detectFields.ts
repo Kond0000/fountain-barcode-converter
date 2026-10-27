@@ -8,6 +8,7 @@ const candidates: Record<MappingKey, string[]> = {
   color: ["カラー", "色", "Color", "Colour"],
   size: ["サイズ", "Size"],
   brand: ["ブランド名", "ブランド", "Brand", "メーカー"],
+  stock: ["在庫", "在庫数", "Stock", "Stock Quantity", "Inventory", "Quantity"],
 };
 
 function caseFold(value: string): string {
