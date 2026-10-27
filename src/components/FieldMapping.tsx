@@ -27,7 +27,7 @@ export function FieldMappingPanel({ headers, mapping, onChange }: FieldMappingPr
           </div>
         ))}
       </div>
-      <p className="mapping-note">「印刷枚数（在庫）」の列を変更すると、全商品の枚数に反映します。「使用しない」を選ぶと1枚に戻ります。0枚の商品は印刷しません。</p>
+      <p className="mapping-note">読込時はすべて1枚です。「印刷枚数（在庫）」で列を選ぶと、全商品の枚数に反映します。「使用しない」に戻すと1枚に戻ります。0枚の商品は印刷しません。</p>
       {!mapping.barcode ? <p className="field-error">「バーコード」で、商品コードが入っているCSV列を選択してください。</p> : null}
     </section>
   );

@@ -123,10 +123,7 @@ export default function App() {
       const detectedMapping = detectFields(parsed.headers);
       setCsvData(parsed);
       setMapping(detectedMapping);
-      setRowStates(parsed.rows.map((row) => ({
-        selected: true,
-        copies: getStockCopies(detectedMapping.stock ? row[detectedMapping.stock] : undefined),
-      })));
+      setRowStates(parsed.rows.map(() => ({ selected: true, copies: 1 })));
       setProductSort(undefined);
       setActiveRowIndex(0);
       setPreviewListOpen(false);

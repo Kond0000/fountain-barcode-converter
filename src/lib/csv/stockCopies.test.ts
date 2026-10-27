@@ -16,9 +16,9 @@ describe("stock-based print copies", () => {
     expect(getStockCopies(value)).toBe(copies);
   });
 
-  it("reflects stock in both PDF selections and the label page count", () => {
+  it("reflects an explicitly selected stock column in both PDFs and the label page count", () => {
     const csv = parseCsvText("商品コード,在庫\nA,3\n,0\nC,2\nD,-1\nE,\nF,不明");
-    const mapping = detectFields(csv.headers);
+    const mapping = { ...detectFields(csv.headers), stock: "在庫" };
     const states = csv.rows.map((row) => ({ selected: true, copies: getStockCopies(row[mapping.stock!]) }));
     const entries = createSelectedProductEntries(csv.rows, states, mapping, undefined);
 
