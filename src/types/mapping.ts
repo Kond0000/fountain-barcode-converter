@@ -9,10 +9,7 @@ export type FieldMapping = {
   stock?: string;
 };
 
-export type MappingKey = keyof Pick<
-  FieldMapping,
-  "barcode" | "productNumber" | "productName" | "price" | "color" | "size" | "brand"
->;
+export type MappingKey = keyof FieldMapping;
 
 export const mappingDefinitions: ReadonlyArray<{
   key: MappingKey;
@@ -26,4 +23,5 @@ export const mappingDefinitions: ReadonlyArray<{
   { key: "color", label: "カラー" },
   { key: "size", label: "サイズ" },
   { key: "brand", label: "ブランド" },
+  { key: "stock", label: "印刷枚数（在庫）" },
 ];

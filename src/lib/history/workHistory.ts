@@ -106,7 +106,7 @@ export function createWorkHistoryRecord(
       csvFileName: state.csvData.fileName,
       pdfTitle: state.pdfTitle,
       rowCount: state.csvData.rows.length,
-      selectedCount: state.rowStates.filter((rowState) => rowState.selected).length,
+      selectedCount: state.rowStates.filter((rowState) => rowState.selected && rowState.copies > 0).length,
       imageCount: images.length,
       imageBytes,
     },

@@ -180,7 +180,7 @@ export function ProductGridRow({
       <div role="gridcell" className="copies-cell" onClick={stop}>
         <input
           type="number"
-          min="1"
+          min="0"
           max="999"
           step="1"
           value={state.copies}

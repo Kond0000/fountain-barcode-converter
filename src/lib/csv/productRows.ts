@@ -83,6 +83,6 @@ export function createSelectedProductEntries(
   const indexed = rows.map((row, index) => ({ row, index }));
   return sortProductRows(indexed, sort, createProductColumns(mapping), rowStates).flatMap(({ row, index }) => {
     const state = rowStates[index];
-    return state?.selected ? [{ row, copies: state.copies, imageFile: state.pdfImage }] : [];
+    return state?.selected && state.copies > 0 ? [{ row, copies: state.copies, imageFile: state.pdfImage }] : [];
   });
 }

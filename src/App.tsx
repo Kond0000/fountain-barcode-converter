@@ -13,6 +13,7 @@ import { WorkHistoryDialog } from "./components/WorkHistoryDialog";
 import { detectFields } from "./lib/csv/detectFields";
 import { parseCsvFile } from "./lib/csv/parseCsv";
 import { createSelectedProductEntries, type ProductSort } from "./lib/csv/productRows";
+import { getStockCopies, normalizePrintCopies } from "./lib/csv/stockCopies";
 import {
   clearWorkHistory,
   deleteWorkHistory,
@@ -122,7 +123,10 @@ export default function App() {
       const detectedMapping = detectFields(parsed.headers);
       setCsvData(parsed);
       setMapping(detectedMapping);
-      setRowStates(parsed.rows.map(() => ({ selected: true, copies: 1 })));
+      setRowStates(parsed.rows.map((row) => ({
+        selected: true,
+        copies: getStockCopies(detectedMapping.stock ? row[detectedMapping.stock] : undefined),
+      })));
       setProductSort(undefined);
       setActiveRowIndex(0);
       setPreviewListOpen(false);
@@ -143,6 +147,12 @@ export default function App() {
 
   const updateMapping = (key: MappingKey, value?: string) => {
     setMapping((current) => ({ ...current, [key]: value }));
+    if (key === "stock" && value !== mapping.stock && csvData) {
+      setRowStates((current) => current.map((state, index) => ({
+        ...state,
+        copies: getStockCopies(value ? csvData.rows[index][value] : undefined),
+      })));
+    }
   };
 
   const updateRowState = (index: number, patch: Partial<RowState>) => {
@@ -487,7 +497,7 @@ export default function App() {
                 if (selected) setActiveRowIndex(index);
               }}
               onCopiesChange={(index, copies) => updateRowState(index, {
-                copies: Math.min(999, Math.max(1, Number.isFinite(copies) ? Math.floor(copies) : 1)),
+                copies: normalizePrintCopies(copies),
               })}
               onPdfImageChange={(index, pdfImage) => {
                 const matchingIndices = new Set(getMatchingPdfImageIndices(

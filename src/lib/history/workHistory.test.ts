@@ -24,6 +24,18 @@ const baseState = {
 };
 
 describe("work history", () => {
+  it("preserves the stock mapping and zero copies while counting only printable products", () => {
+    const state = {
+      ...baseState,
+      mapping: { ...baseState.mapping, stock: "在庫" },
+      rowStates: [{ selected: true, copies: 3 }, { selected: true, copies: 0 }],
+    };
+    const record = createWorkHistoryRecord(state);
+
+    expect(record.summary.selectedCount).toBe(1);
+    expect(restoreWorkHistoryPayload(record.payload)).toEqual(state);
+  });
+
   it("deduplicates a shared image and restores all work state", () => {
     const image = new File([new Uint8Array([1, 2, 3])], "jacket.png", { type: "image/png" });
     const record = createWorkHistoryRecord({

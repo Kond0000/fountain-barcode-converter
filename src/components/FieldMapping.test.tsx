@@ -12,7 +12,7 @@ describe("FieldMappingPanel", () => {
       />,
     );
 
-    expect(html.match(/role="combobox"/g)).toHaveLength(7);
+    expect(html.match(/role="combobox"/g)).toHaveLength(8);
     expect(html).not.toContain("<select");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain(">商品コード</span>");
