@@ -1,6 +1,8 @@
 import type { FieldMapping, MappingKey } from "../../types/mapping";
 
-const candidates: Record<MappingKey, string[]> = {
+type AutoMappingKey = Exclude<MappingKey, "stock">;
+
+const candidates: Record<AutoMappingKey, string[]> = {
   barcode: ["商品コード", "JAN", "JANコード", "SKU", "SKUコード", "品番", "Product Code", "Code"],
   productNumber: ["型番", "品番", "グループコード", "Style No", "Style Number", "Item Number"],
   productName: ["商品名", "名称", "商品名称", "Title", "Product Name", "Name"],
@@ -8,7 +10,6 @@ const candidates: Record<MappingKey, string[]> = {
   color: ["カラー", "色", "Color", "Colour"],
   size: ["サイズ", "Size"],
   brand: ["ブランド名", "ブランド", "Brand", "メーカー"],
-  stock: ["在庫", "在庫数", "Stock", "Stock Quantity", "Inventory", "Quantity"],
 };
 
 function caseFold(value: string): string {
@@ -40,7 +41,7 @@ function detectHeader(headers: string[], fieldCandidates: string[], used: Set<st
 export function detectFields(headers: string[]): FieldMapping {
   const mapping: FieldMapping = {};
   const used = new Set<string>();
-  (Object.keys(candidates) as MappingKey[]).forEach((key) => {
+  (Object.keys(candidates) as AutoMappingKey[]).forEach((key) => {
     const header = detectHeader(headers, candidates[key], used);
     if (header) {
       mapping[key] = header;

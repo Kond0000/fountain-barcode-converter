@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { detectFields } from "./detectFields";
 
 describe("detectFields", () => {
-  it.each(["在庫", "在庫数", "Stock", "stock_quantity", "Inventory", "QUANTITY"])("maps %s to stock", (header) => {
-    expect(detectFields(["商品コード", header])).toMatchObject({ barcode: "商品コード", stock: header });
+  it.each(["在庫", "在庫数", "Stock", "stock_quantity", "Inventory", "QUANTITY"])("leaves %s unassigned until explicitly selected", (header) => {
+    expect(detectFields(["商品コード", header])).toEqual({ barcode: "商品コード" });
   });
 
   it("maps Japanese headers without depending on order", () => {
